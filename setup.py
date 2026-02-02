@@ -10,10 +10,10 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="mosmart",
-    version="0.9.1",
+    version="0.9.2",
     author="Magnus Modig",
     author_email="magnus@modig.no",
-    description="S.M.A.R.T Monitor Tool for Linux - Detect failing drives with emergency unmount support",
+    description="S.M.A.R.T Monitor Tool for Linux - Real-time disk health monitoring with web dashboard",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/MsModig/mosmart",
