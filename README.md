@@ -1,51 +1,53 @@
-# S.M.A.R.T. Monitor
+# MoSMART - S.M.A.R.T. Monitor
 
-Et Python-basert verktøy for å lese og tolke S.M.A.R.T. (Self-Monitoring, Analysis and Reporting Technology) data fra harddisker på Linux-systemer.
+A Python-based tool for reading and interpreting S.M.A.R.T. (Self-Monitoring, Analysis and Reporting Technology) data from hard drives on Linux systems.
 
-## 🚀 Rask Installasjon
+> 🇳🇴 [Norsk dokumentasjon](dokumentasjon-no.md) | 🇬🇧 [Full English Documentation](documentation-en.md)
+
+## 🚀 Quick Installation
 
 ```bash
 pip install mosmart
 sudo mosmart
 ```
 
-Åpne **http://localhost:5000** i nettleseren din.
+Open **http://localhost:5000** in your browser.
 
-## Funksjoner
+## Features
 
-- 📊 Skann og vis alle tilgjengelige lagringsenheter
-- 🔍 Les detaljerte S.M.A.R.T. attributter
-- ⚠️ Oppdage potensielle helseproblemer
-- 🌡️ Overvåk disktemperatur
-- 📈 Vis kritiske parametre som reallokerte sektorer, strømtid, og mer
-- 🧠 **Health Score System** - Intelligent poengberegning (0-100) basert på kritiske parametere
-- 🌐 **Web Dashboard** - Moderne web-grensesnitt for sanntidsovervåking
-- ⚙️ Konfigurerbar auto-refresh og individuell disk-monitoring
-- �️ **Emergency Unmount** - Automatisk fjerning av kritisk feilende disker (valgfritt)
-- ⌛ **Lifetime Remaining** - SMART ID 202 støtte for SSD-slitasjemåling
-- 🔒 **Thread-safe Scanning** - Race condition-beskyttelse med watchdog-overvåking
-- 💻 Støtte for Linux og ⚠️ **Windows (via WSL2 - teoretisk, ikke testet)**
+- 📊 Scan and display all available storage devices
+- 🔍 Read detailed S.M.A.R.T. attributes
+- ⚠️ Detect potential health issues
+- 🌡️ Monitor disk temperature
+- 📈 Display critical parameters like reallocated sectors, power-on hours, and more
+- 🧠 **Health Score System** - Intelligent scoring (0-100) based on critical parameters
+- 🌐 **Web Dashboard** - Modern web interface for real-time monitoring
+- ⚙️ Configurable auto-refresh and individual disk monitoring
+- 🛡️ **Emergency Unmount** - Automatic removal of critically failing drives (optional)
+- ⌛ **Lifetime Remaining** - SMART ID 202 support for SSD wear measurement
+- 🔒 **Thread-safe Scanning** - Race condition protection with watchdog monitoring
+- 💻 Linux support and ⚠️ **Windows (via WSL2 - theoretical, not tested)**
 
-## Testing og Validering
+## Testing and Validation
 
-MoSMART har blitt validert gjennom omfattende testing med **24 forskjellige lagringsenheter**:
+MoSMART has been validated through comprehensive testing with **24 different storage devices**:
 
-- **Diverse disktyper:** SSD, SATA HDD og IDE (legacy) disker
-- **Realistiske forhold:** Diskene har blitt brukt av forskjellige personer med varierende arbeidsbelastninger
-- **Ulik slitasjegrad:** Fra praktisk talt nye disker til disker nær end-of-life
-- **Virkelighetsjustering:** Testsettet reflekterer hvordan disker brukes i praksis - ikke kun laboratorietester
+- **Diverse disk types:** SSDs, SATA HDDs and IDE (legacy) drives
+- **Real-world conditions:** Drives have been used by different users with varying workloads
+- **Different wear levels:** From nearly new drives to near end-of-life
+- **Real-world alignment:** The test set reflects how drives are actually used in practice - not just lab tests
 
-Denne testingen sikrer at programmet fungerer pålitelig på disker i alle tilstander og brukerscenarier.
+This testing ensures that the program works reliably on drives in all conditions and user scenarios.
 
-## Krav
+## Requirements
 
-### Systemkrav
-- Linux-operativsystem
-- Python 3.7 eller nyere
-- `smartmontools` installert på systemet
-- Root/sudo-tilgang for å lese S.M.A.R.T. data
+### System Requirements
+- Linux operating system
+- Python 3.7 or newer
+- `smartmontools` installed on the system
+- Root/sudo access to read S.M.A.R.T. data
 
-### Installasjon av systemavhengigheter
+### Installing System Dependencies
 
 ```bash
 # Ubuntu/Debian
@@ -59,149 +61,231 @@ sudo dnf install smartmontools python3-pip
 sudo pacman -S smartmontools python-pip
 ```
 
-## Installasjon
+## Installation
 
-### Installer via PyPI (anbefalt)
+### Install via PyPI (Recommended)
 
 ```bash
 pip install mosmart
 ```
 
-**Kjør web-dashboardet:**
+**Run the web dashboard:**
 ```bash
 sudo mosmart
 ```
 
-1. **Installer systemavhengigheter**
+### Manual Installation (Development)
+
+1. **Install system dependencies**
    ```bash
    sudo apt update
    sudo apt install smartmontools python3-full python3-pip pipx
    ```
 
-2. **Installer med pipx (anbefalt for enkeltstående verktøy)**
+2. **Install with pipx (recommended for standalone tools)**
    ```bash
    pipx install pySMART
    ```
 
-   **ELLER opprett et virtuelt miljø:**
+   **OR create a virtual environment:**
    ```bash
-   cd /home/magnus/mosmart
+   cd /path/to/mosmart
    python3 -m venv venv
    source venv/bin/activate
    pip install -r requirements.txt
    ```
 
-   Når du bruker virtuelt miljø, aktiver det før bruk:
+   When using virtual environment, activate it before use:
    ```bash
    source venv/bin/activate
    ```
 
-## Quick Start (PyPI)
+## Usage
 
-```bash
-pip install mosmart
-sudo mosmart
-```
+> **Important:** If you're using a virtual environment, activate it first: `source venv/bin/activate`
 
-Åpne deretter nettleseren din og gå til: **http://localhost:5000**
+### Web Dashboard (Recommended!)
 
-## Bruk
-
-> **Viktig:** Hvis du bruker virtuelt miljø, aktiver det først: `source venv/bin/activate`
-
-### Web Dashboard (Anbefalt!)
-
-**Start web-serveren:**
+**Start the web server:**
 ```bash
 sudo ./venv/bin/python3 web_monitor.py
 ```
 
-**Med egendefinert port:**
+**With custom port:**
 ```bash
 sudo ./venv/bin/python3 web_monitor.py --port 8080
 ```
 
-**Med egendefinert refresh-intervall:**
+**With custom refresh interval:**
 ```bash
 sudo ./venv/bin/python3 web_monitor.py --refresh 30
 ```
 
-Åpne deretter nettleseren din og gå til: **http://localhost:5000**
+Then open your browser and go to: **http://localhost:5000**
 
-**Web Dashboard funksjoner:**
-- 🎨 Moderne, fargekodet visning av alle disker
-- 🔄 Auto-refresh (konfigurerbar, standard 60 sek)
-- ⏯️ Slå av/på overvåking per disk
-- 📊 Sanntidsoppdatering av health scores
-- 🎯 Detaljert visning av alle helsekomponenter
-- 📱 Responsiv design for mobil og desktop
+**Web Dashboard features:**
+- 🎨 Modern, color-coded display of all disks
+- 🔄 Auto-refresh (configurable, default 60 sec)
+- ⏯️ Enable/disable monitoring per disk
+- 📊 Real-time updates of health scores
+- 🎯 Detailed view of all health components
+- 📱 Responsive design for mobile and desktop
 
-### Kommandolinje (CLI)
+### Command Line (CLI)
 
-**Liste alle lagringsenheter:**
+**List all storage devices:**
 ```bash
 sudo ./venv/bin/python3 smart_monitor.py --list
 ```
 
-**Vis informasjon om en spesifikk disk:**
+**Display information about a specific disk:**
 ```bash
 sudo ./venv/bin/python3 smart_monitor.py -d /dev/sda
 ```
 
-**Vis detaljerte S.M.A.R.T. attributter:**
+**Display detailed S.M.A.R.T. attributes:**
 ```bash
 sudo ./venv/bin/python3 smart_monitor.py -d /dev/sda --attributes
 ```
 
-**Kun helseoppsummering:**
+**Health summary only:**
 ```bash
 sudo ./venv/bin/python3 smart_monitor.py -d /dev/sda --health
 ```
 
-**Skann alle disker:**
+**Scan all disks:**
 ```bash
 sudo ./venv/bin/python3 smart_monitor.py
 ```
 
-### Kommandolinjealternativer (CLI)
+### Command Line Options (CLI)
 
 **smart_monitor.py:**
 ```
--l, --list          Liste alle tilgjengelige lagringsenheter
--d, --device PATH   Spesifiser hvilken enhet som skal overvåkes (f.eks. /dev/sda)
--a, --attributes    Vis detaljerte S.M.A.R.T. attributter
---health            Vis kun helseoppsummering
+-l, --list          List all available storage devices
+-d, --device PATH   Specify which device to monitor (e.g. /dev/sda)
+-a, --attributes    Display detailed S.M.A.R.T. attributes
+--health            Display health summary only
 ```
 
 **web_monitor.py:**
 ```
 -p, --port PORT     Port for webserver (default: 5000)
--r, --refresh SEC   Auto-refresh intervall i sekunder (default: 60)
---host HOST         Host å binde til (default: 127.0.0.1)
+-r, --refresh SEC   Auto-refresh interval in seconds (default: 60)
+--host HOST         Host to bind to (default: 127.0.0.1)
 ```
 
 ## Health Score System
 
-Programmet bruker et avansert poengberegningssystem basert på industristandarder fra Backblaze, Google og diskprodusenter:
+The program uses an advanced scoring system based on industry standards from Backblaze, Google and disk manufacturers:
 
-**Vekting:**
-- **Reallokerte sektorer: 50%** - Mest kritisk parameter
-- **Ventende sektorer: 15%** - Sektorer som venter på reallokering
-- **Urettbare sektorer: 10%** - Permanent ødelagte sektorer
-- **Kommando timeouts: 10%** - Responsivitetsproblemer
-- **Alder: 10%** - Forventet levetid (HDD: 3-5 år, SSD: 5-10 år)
-- **Temperatur: 5%** - Driftstemperatur (HDD: <35°C ideelt, SSD: <40°C)
+**Weighting:**
+- **Reallocated sectors: 50%** - Most critical parameter
+- **Pending sectors: 15%** - Sectors waiting for reallocation
+- **Uncorrectable sectors: 10%** - Permanently damaged sectors
+- **Command timeouts: 10%** - Responsiveness issues
+- **Age: 10%** - Expected lifespan (HDD: 3-5 years, SSD: 5-10 years)
+- **Temperature: 5%** - Operating temperature (HDD: <35°C ideal, SSD: <40°C)
 
-**Score-tolkning:**
-- `95-100`: 🔵 UTMERKET - Perfekt stand
-- `80-94`: 🟢 God - Normal drift
-- `60-79`: 🟡 Akseptabel - Overvåk regelmessig
-- `40-59`: 🟠 Advarsel - Sikre data med backup
-- `20-39`: 🔴 Dårlig - Høy risiko
-- `0-19`: 🔴 KRITISK - Bytt ut ASAP
-- `<0`: 💀 DØD/ZOMBIE - Umiddelbar utskifting
+**Score interpretation:**
+- `95-100`: 🔵 EXCELLENT - Perfect condition
+- `80-94`: 🟢 Good - Normal operation
+- `60-79`: 🟡 Acceptable - Monitor regularly
+- `40-59`: 🟠 Warning - Secure data with backup
+- `20-39`: 🔴 Poor - High risk
+- `0-19`: 🔴 CRITICAL - Replace ASAP
+- `<0`: 💀 DEAD/ZOMBIE - Immediate replacement
 
-## Eksempel på output
+## Important S.M.A.R.T. Attributes
+
+The program specifically monitors these critical attributes:
+
+- **ID 5**: Reallocated Sectors Count - Number of defective sectors that have been moved
+- **ID 187**: Reported Uncorrectable Errors - Errors that could not be corrected
+- **ID 196**: Reallocation Event Count - Number of attempts to move sectors
+- **ID 197**: Current Pending Sectors - Sectors waiting to be moved (CRITICAL)
+- **ID 198**: Offline Uncorrectable - Sectors that cannot be read
+- **ID 199**: UltraDMA CRC Errors - Communication errors
+- **ID 194**: Temperature - Current disk temperature
+- **ID 9**: Power On Hours - Total operating time
+
+## Ghost Drive Condition (GDC)
+
+MoSMART includes special detection for "ghost drives" - drives that freeze or become unresponsive during SMART reads. This is especially common in certain Seagate models (ST2000DM001).
+
+**GDC Status Levels:**
+- `OK` - Drive responds normally
+- `SUSPECT` - Some timeout issues detected
+- `CONFIRMED` - Repeated failures, drive likely failing
+- `TERMINAL` - Drive completely unresponsive
+
+**GDC drives are:**
+- Automatically excluded from normal scans (to prevent freezing)
+- Only scanned during manual "Force Scan"
+- Clearly marked with 👻 icon in the web interface
+
+## Alert System
+
+MoSMART can send email alerts when disk problems are detected:
+
+**Alert Triggers:**
+- Health score drops below thresholds
+- Pending sectors detected
+- Temperature exceeds limits
+- GDC status changes
+
+**Configuration:**
+Edit `~/.mosmart/settings.json`:
+
+```json
+{
+  "email": {
+    "enabled": true,
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "sender_email": "your-email@gmail.com",
+    "sender_password": "your-app-password",
+    "recipient_email": "alert-recipient@example.com"
+  }
+}
+```
+
+## Emergency Unmount
+
+When a disk reaches EMERGENCY status, MoSMART can automatically unmount it to prevent data corruption.
+
+**Two Modes:**
+- **PASSIVE (Default)**: Logs decisions only, takes no action
+- **ACTIVE (Optional)**: Automatically unmounts on EMERGENCY
+
+**Safety Features:**
+- Five-layer validation before unmount
+- Never unmounts critical paths (/, /boot, /home, /usr, /var)
+- 30-minute cooldown between attempts
+- Comprehensive logging
+
+**Enable ACTIVE mode:**
+```json
+{
+  "emergency_unmount": {
+    "mode": "ACTIVE",
+    "require_confirmation": true
+  }
+}
+```
+
+See [EMERGENCY_UNMOUNT_IMPLEMENTATION.md](EMERGENCY_UNMOUNT_IMPLEMENTATION.md) for details.
+
+## Multi-Language Support
+
+MoSMART supports multiple languages:
+
+- 🇬🇧 English
+- 🇳🇴 Norwegian (Norsk)
+
+Language files are located in `languages/` directory. The web interface automatically uses the language from your browser settings, with fallback to English.
+
+## Example Output
 
 ```
 ============================================================
@@ -220,158 +304,48 @@ Status: PASS
 ✓ No issues detected
 ```
 
-## Viktighelse S.M.A.R.T. attributter
+## Project Structure
 
-Programmet overvåker spesielt disse kritiske attributtene:
+- `smart_monitor.py` - Main S.M.A.R.T. monitoring and health score calculation
+- `web_monitor.py` - Flask web application with dashboard
+- `disk_logger.py` - Smart logging with periodic and change-based triggers
+- `decision_engine.py` - Pure decision logic for disk health evaluation
+- `emergency_actions.py` - Emergency unmount execution with safety checks
+- `gdc.py` - GDCManager class for detecting failing drives
+- `alert_engine.py` & `email_notifier.py` - Alert system with email notifications
+- `config_manager.py` - Configuration management
+- `device_lifecycle_logger.py` - Track disk connection/disconnection events
+- `requirements.txt` - Python dependencies
+- `setup.py` - Package installation configuration
 
-- **ID 5**: Reallocated Sectors Count - Antall defekte sektorer som er flyttet
-- **ID 187**: Reported Uncorrectable Errors - Feil som ikke kunne rettes
-- **ID 196**: Reallocation Event Count - Antall forsøk på å flytte sektorer
-- **ID 197**: Current Pending Sector Count - Sektorer som venter på reallokering
-- **ID 198**: Uncorrectable Sector Count - Antall sektorer med urettbare feil
-- **ID 202**: Percent Lifetime Remaining - SSD-slitasje (0-100%, lavere er dårligere)
+## Contributing
 
-## Tekniske forbedringer
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-### Thread-safe Scanning
-MoSMART bruker thread-safe locking for alle scan-operasjoner:
-- **Atomic updates** - Placeholder-data overskrives aldri av gammel data
-- **Race condition-beskyttelse** - Locking på alle scan_results-tilganger
-- **Watchdog-overvåking** - Detekterer stuck devices automatisk (30s timeout)
-- **Lifecycle logging** - Logger stuck devices for feilsøking
+## License
 
-### Lifetime Remaining (SMART ID 202)
-Støtte for SMART ID 202 (Percent_Lifetime_Remaining) på moderne SSD-er:
-- **Display** - Vises inline hvis >10%, separat hvis ≤10%
-- **Penalty scoring** - Eksponentiell straff ved lav verdi:
-  - ≤5%: -35 poeng (kritisk)
-  - 6-10%: -20 til -10 poeng (advarsel)
-  - 11-20%: Lineær nedgang
-  - ≥21%: Ingen straff
-- **Tooltips** - Kontekstavhengige meldinger for brukerveiledning
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-### Windows-støtte (WSL2)
-MoSMART fungerer fullt på Windows via WSL2 (Windows Subsystem for Linux):
-- **Full funksjonalitet** - Alle features tilgjengelig
-- **Enkel tilgang** - Dashboard tilgjengelig fra Windows-nettleser
-- **Filintegrasjon** - WSL-filer tilgjengelige via `\\wsl$\` i Filutforsker
-- Se [Installasjon](#installasjon) for komplett WSL2-guide
+## Author
 
-## Feilsøking
+**Magnus Modig**
+- Email: magnus@modig.no
+- GitHub: [@MsModig](https://github.com/MsModig)
 
-### "Permission denied" feil
-S.M.A.R.T. data krever root-tilgang. Kjør programmet med `sudo`:
-```bash
-sudo python3 smart_monitor.py -d /dev/sda
-```
+## Acknowledgments
 
-### "Command not found: smartctl"
-Installer smartmontools:
-```bash
-sudo apt install smartmontools
-```
+- Based on the [pySMART](https://github.com/truenas/py-SMART) library
+- Health score algorithms inspired by [Backblaze Hard Drive Stats](https://www.backblaze.com/b2/hard-drive-test-data.html)
+- Special thanks to all beta testers who provided drives for testing
 
-### "No module named 'pySMART'"
-Installer Python-avhengigheter i et virtuelt miljø:
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
+## Support
 
-### "externally-managed-environment" feil
-Dette er normalt på nyere Debian/Ubuntu-systemer. Bruk virtuelt miljø:
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
+- 📖 [Full Documentation](documentation-en.md)
+- 🐛 [Report Issues](https://github.com/MsModig/mosmart/issues)
+- 💬 [Discussions](https://github.com/MsModig/mosmart/discussions)
 
-### Virtuelt miljø ikke tilgjengelig
-Installer python3-full:
-```bash
-sudo apt install python3-full
-```
+---
 
-## Emergency Unmount
+**⚠️ Important Disclaimer:**
 
-MoSMART kan automatisk fjerne kritisk feilende disker fra systemet for å forhindre datakorrupsjon.
-
-**Default: PASSIVE modus (trygt)**
-- Evaluerer disk-helse
-- Logger beslutninger
-- Ingen automatiske handlinger
-
-**Aktivere ACTIVE modus (valgfritt):**
-```bash
-# 1. Rediger config
-nano ~/.mosmart/settings.json
-
-# 2. Sett mode til ACTIVE
-{
-  "emergency_unmount": {
-    "mode": "ACTIVE"
-  }
-}
-
-# 3. Restart service
-sudo systemctl restart mosmart
-```
-
-**Sikkerhet:**
-- ✅ Aldri unmount kritiske stier (/, /boot, /home)
-- ✅ 30 minutters cooldown mellom forsøk
-- ✅ Full logging før/under/etter
-- ✅ Default til PASSIVE ved config-feil
-
-Se [EMERGENCY_UNMOUNT_IMPLEMENTATION.md](EMERGENCY_UNMOUNT_IMPLEMENTATION.md) for detaljer.
-
-## Lisens
-
-**MoSMART Monitor** bruker en delt lisensmodell for maksimal kontroll og åpenhet:
-
-### 📜 Kode - GNU General Public License v3.0 (GPLv3)
-
-All Python-kode og JavaScript-kode er lisensiert under GPLv3. Dette betyr:
-- ✅ Du kan bruke, endre og dele koden
-- ✅ Du må dele dine endringer under samme lisens
-- ✅ Du må inkludere LICENSE-fil og copyright-notis
-
-Se [LICENSE](LICENSE) fil for fullstendig tekst.
-
-### 🎨 Logo & Design - All Rights Reserved
-
-De følgende ressurser er **IKKE** dekket av GPLv3:
-
-- **modig-logo-monokrom.png** - MoSMART Monitor logo
-- **logo-top.svg** - Modigs Datahjelp logo  
-- Alle UI/UX design-elementer og visuell identitet
-
-© Magnus S. Modig / Modigs Datahjelp – **All Rights Reserved**
-
-Disse kan IKKE brukes, reproduseres eller modifiseres uten eksplisitt tillatelse.
-
-### 📚 Dokumentasjon - Creative Commons BY-SA 4.0
-
-All dokumentasjon er lisensiert under CC BY-SA 4.0:
-
-- README.md
-- dokumentasjon-no.md
-- documentation-en.md
-- PASSIVE_MODE_README.md
-- EMERGENCY_UNMOUNT_IMPLEMENTATION.md
-- Alle andre .md-dokumentasjonsfiler
-
-Du kan dele og tilpasse dokumentasjonen med attribusjon.
-
-### ℹ️ Se også
-
-Se [COPYRIGHT](COPYRIGHT) fil for fullstendig lisens- og branding-informasjon.
-
-## Bidrag
-
-Bidrag er velkomne! Vennligst åpne en issue eller pull request.
-
-## Advarsel
-
-⚠️ Dette verktøyet er laget for informasjonsformål. Ta alltid backup av viktige data, og konsulter med en profesjonell ved tegn på diskfeil.
+This tool is provided as-is for monitoring purposes. While it can help detect drive failures early, it is **NOT a substitute for regular backups**. Always maintain backups of important data, regardless of drive health status.
