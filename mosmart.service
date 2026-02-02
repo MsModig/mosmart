@@ -1,0 +1,16 @@
+[Unit]
+Description=MoSMART Disk Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/magnus/mosmart
+ExecStart=/home/magnus/mosmart/venv/bin/python3 /home/magnus/mosmart/web_monitor.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/mosmart.log
+StandardError=append:/var/log/mosmart.log
+
+[Install]
+WantedBy=multi-user.target

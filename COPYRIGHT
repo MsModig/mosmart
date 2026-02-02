@@ -1,0 +1,120 @@
+MoSMART Monitor - S.M.A.R.T. Disk Monitoring Tool
+
+================================================================================
+CODE LICENSE
+================================================================================
+
+The source code of MoSMART Monitor is licensed under the GNU General Public
+License v3.0 (GPLv3). See the LICENSE file for the full text.
+
+This means you can:
+  • Copy, modify, and distribute the code
+  • Use the code for any purpose
+  • Study how the code works
+
+Under the condition that you:
+  • Disclose your modifications
+  • Include the license and copyright notice
+  • Make your code available under the same license
+
+================================================================================
+BRANDING & DESIGN - ALL RIGHTS RESERVED
+================================================================================
+
+The following assets are copyrighted and may NOT be used without permission:
+
+LOGOS & BRANDING ASSETS:
+  • modig-logo-monokrom.png
+  • logo_liten.png
+  • logo_top.png
+  • logo-top.svg
+  • mosmart-logo.png
+  • favicon.svg / favicon.ico
+  • favicon-32.png / favicon-64.png / favicon-96x96.png
+  • apple-touch-icon.png
+  • web-app-manifest-192x192.png / web-app-manifest-512x512.png
+
+  © Magnus S. Modig / Modigs Datahjelp
+  All Rights Reserved
+
+  These logos may be used ONLY in the original, unmodified MoSMART project.
+  If you fork or modify the code to create a derivative work, you MUST:
+    • Remove all MoSMART logos and branding
+    • Create your own visual identity
+    • NOT use the "MoSMART" name or trademark
+
+NOTE: img_hdd.png and img_ssd.png are AI-generated assets (ChatGPT) and 
+      are NOT subject to this copyright restriction.
+
+DESIGN & BRANDING:
+  • Visual design, UI/UX elements, color schemes, and brand identity
+  • Application naming and trademark "MoSMART"
+  
+  © Magnus S. Modig / Modigs Datahjelp
+  All Rights Reserved
+  
+  May only be used for the official MoSMART project, not derivative works.
+
+================================================================================
+DOCUMENTATION LICENSE
+================================================================================
+
+The following documentation files are licensed under Creative Commons
+Attribution-ShareAlike 4.0 International (CC BY-SA 4.0):
+
+  • README.md
+  • dokumentasjon-no.md
+  • documentation-en.md
+  • PASSIVE_MODE_README.md
+  • EMERGENCY_UNMOUNT_IMPLEMENTATION.md
+  • And all other .md documentation files
+
+This means you can:
+  • Share and adapt the documentation
+  • Use for any purpose, including commercial
+
+Under the condition that you:
+  • Give appropriate credit
+  • Provide a link to the license
+  • Indicate if you made changes
+  • Apply the same license to your adaptations
+
+For more information, see: https://creativecommons.org/licenses/by-sa/4.0/
+
+================================================================================
+CONTACT & COMMERCIAL USE
+================================================================================
+
+For inquiries regarding:
+  • Commercial licensing
+  • Branding usage permission
+  • Custom development
+  • Support and services
+
+Contact: Magnus S. Modig
+Email: kontakt@modigs-datahjelp.no
+Website: https://modigs-datahjelp.no
+
+================================================================================
+ATTRIBUTION REQUIREMENTS
+================================================================================
+
+When using or redistributing MoSMART Monitor code, you must:
+
+1. Include this COPYRIGHT file in distributions
+2. Include the LICENSE file (GPLv3)
+3. Maintain copyright notice: "© 2026 Magnus S. Modig"
+4. For code modifications, add your own copyright while preserving original
+5. NOT use the MoSMART or Modigs Datahjelp logos in your derivative works
+   without explicit permission
+
+================================================================================
+NO WARRANTY
+================================================================================
+
+The software is provided "as-is" without warranty of any kind, express or
+implied. See the LICENSE (GPLv3) file for full disclaimer.
+
+================================================================================
+Last Updated: 24 January 2026
+================================================================================

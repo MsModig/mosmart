@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32.png') }}">
+    <link rel="icon" type="image/png" sizes="96x96" href="{{ url_for('static', filename='favicon-96x96.png') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <title>MoSMART Monitor Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='datasmart.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='datasmart_gui.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <img src="{{ url_for('static', filename='mosmart-logo.png') }}" alt="MoSMART Logo" class="logo">
+            <h1>A powerful S.M.A.R.T. monitoring software</h1>
+            <img src="{{ url_for('static', filename='logo_top.png') }}" alt="Modigs Datahjelp Logo" class="logo">
+            <div class="header-controls">
+                <div class="status-indicator">
+                    <div class="pulse"></div>
+                    <span id="last-update">Laster...</span>
+                </div>
+                <button onclick="App.refreshData()" class="btn-primary">
+                    🔄 <span data-i18n="refresh_now">Oppdater nå</span>
+                </button>
+                <button onclick="App.forceScan()" class="btn-warning">
+                    ⚡ <span data-i18n="force_scan">Tving skanning</span>
+                </button>
+                <button onclick="App.openSettings()" class="btn-secondary">
+                    ⚙️ <span data-i18n="settings">Innstillinger</span>
+                </button>
+                <button onclick="App.openAbout()" class="btn-info">
+                    ℹ️ <span data-i18n="about">Om</span>
+                </button>
+                <button onclick="App.openAllLogs()" class="btn-secondary">
+                    📁 <span data-i18n="view_all_logs">Alle logger</span>
+                </button>
+                <button onclick="App.printReport()" class="btn-secondary">
+                    🖨️ <span data-i18n="print">Skriv ut</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <span class="filter-label" data-i18n="show_disks">Vis disker:</span>
+            <div id="device-filters" class="device-filters"></div>
+
+            <a href="#" onclick="App.openSettingsSecurity(); return false;" id="emergency-status-indicator" class="emergency-status passive" title="Klikk for å endre">
+                <span class="status-dot"></span>
+                <span class="status-text" data-i18n="emergency_passive">Nødstopp: AV</span>
+            </a>
+            
+            <button onclick="App.selectAllDisks()" class="btn-small" data-i18n="select_all">Velg alle</button>
+            <button onclick="App.deselectAllDisks()" class="btn-small" data-i18n="deselect_all">Fjern alle</button>
+        </div>
+
+        <!-- System Event Banner -->
+        <div id="system-event-banner" style="display:none;" class="info-banner warning">
+            <div class="banner-icon">⚠️</div>
+            <div class="banner-content">
+                <div class="banner-title">Hendelse registrert</div>
+                <div class="banner-message">Ukontrollert avslutning oppdaget</div>
+                <div class="banner-details">
+                    <span id="system-event-date"></span> · <span id="system-event-affected"></span>
+                </div>
+                <div class="banner-note">Dette er normalt ved strømbrudd eller løs strømtilkobling.</div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main id="devices-container">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <p data-i18n="loading_smart">Laster S.M.A.R.T. data...</p>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer>
+            <p><img src="{{ url_for('static', filename='logo_liten.png') }}" alt="MoSMART" class="footer-logo"> MoSMART Monitor v0.9 beta | Laget av <a href="mailto:kontakt@modigs-datahjelp.no">Modigs Datahjelp</a></p>
+        </footer>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h2 data-i18n="settings">Innstillinger</h2>
+                <button class="close-btn" onclick="App.closeSettings()">✕</button>
+            </div>
+            
+            <!-- Settings Tabs -->
+            <div class="settings-tabs">
+                <button class="tab-btn active" data-tab="general" onclick="App.switchTab('general')">
+                    ⬜ <span data-i18n="general_settings">Generelt</span>
+                </button>
+                 <button class="tab-btn" data-tab="health" onclick="App.switchTab('health')">
+                    🟦 <span data-i18n="health_alerts">Helse</span>
+                </button>
+                <button class="tab-btn" data-tab="security" onclick="App.switchTab('security')">
+                    🟥 <span data-i18n="security_settings">Sikkerhet</span>
+                </button>
+                <button class="tab-btn" data-tab="disks" onclick="App.switchTab('disks')">
+                    🟫 <span data-i18n="disk_selection">Diskvalg</span>
+                </button>
+                <button class="tab-btn" data-tab="smart" onclick="App.switchTab('smart')">
+                    🟨 <span data-i18n="smart_alerts">SMART</span>
+                </button>
+                <button class="tab-btn" data-tab="temperature" onclick="App.switchTab('temperature')">
+                    🟩 <span data-i18n="temp_alerts">Temperatur</span>
+                </button>
+                <button class="tab-btn" data-tab="gdc" onclick="App.switchTab('gdc')">
+                    ⬛ <span data-i18n="gdc_settings">GDC</span>
+                </button>
+                <button class="tab-btn" data-tab="logging" onclick="App.switchTab('logging')">
+                    🟧 <span data-i18n="logging_settings">Logging</span>
+                </button>
+                <button class="tab-btn" data-tab="channels" onclick="App.switchTab('channels')">
+                    🟪 <span data-i18n="alert_channels">Varsling</span>
+                </button>
+            </div>
+
+            <!-- Settings Content -->
+            <div class="settings-content">
+                <!-- General Tab -->
+                <div id="tab-general" class="tab-content active">
+                    <h3 data-i18n="general_settings">Generelle innstillinger</h3>
+                    <div class="form-group">
+                        <label data-i18n="language">Språk:</label>
+                        <select id="setting-language">
+                            <!-- Populated dynamically from /api/languages -->
+                        </select>
+                        <small style="display: block; margin-top: 5px; color: #666; font-style: italic;">
+                            <span data-i18n="language_refresh_hint">Noen elementer krever en hard refresh (Ctrl+Shift+R) for å oppdateres</span>
+                        </small>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="refresh_interval">Oppdateringsintervall (sekunder):</label>
+                        <input type="number" id="setting-polling-interval" min="10" max="300" value="60">
+                    </div>
+                </div>
+
+                <!-- Disks Tab -->
+                <div id="tab-disks" class="tab-content">
+                    <h3 data-i18n="disk_selection">Diskvalg</h3>
+                    <div id="disk-selection-list" class="disk-list">
+                        <!-- Populated dynamically -->
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="setting-ignore-usb">
+                            <span data-i18n="ignore_usb">Ignorer USB-disker</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Health Tab -->
+                <div id="tab-health" class="tab-content">
+                    <h3 data-i18n="health_alerts">Helsevarsler</h3>
+                    <div class="form-group">
+                        <label data-i18n="score_drop_threshold">Score drop-terskel:</label>
+                        <input type="number" id="setting-score-drop" min="1" max="50" value="3">
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="critical_score_limit">Kritisk score-grense:</label>
+                        <input type="number" id="setting-critical-score" min="0" max="100" value="40">
+                    </div>
+                </div>
+
+                <!-- SMART Tab -->
+                <div id="tab-smart" class="tab-content">
+                    <h3 data-i18n="smart_alerts">SMART-varsler</h3>
+                    <div class="form-group">
+                        <label data-i18n="reallocated_milestones">Reallocated sectors milestones:</label>
+                        <input type="text" id="setting-reallocated" value="5,10,100,1000,10000">
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="pending_milestones">Pending sectors milestones:</label>
+                        <input type="text" id="setting-pending" value="1,5,10,50,100">
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="uncorrectable_threshold">Uncorrectable-terskel:</label>
+                        <input type="number" id="setting-uncorrectable" min="1" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="timeout_threshold">Timeout-terskel:</label>
+                        <input type="number" id="setting-timeout" min="1" value="5">
+                    </div>
+                </div>
+
+                <!-- Temperature Tab -->
+                <div id="tab-temperature" class="tab-content">
+                    <h3 data-i18n="temp_alerts">Temperaturvarsler</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label data-i18n="ssd_warning">SSD varsel (°C):</label>
+                            <input type="number" id="setting-ssd-warn" min="30" max="100" value="60">
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="ssd_critical">SSD kritisk (°C):</label>
+                            <input type="number" id="setting-ssd-crit" min="30" max="100" value="70">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label data-i18n="hdd_warning">HDD varsel (°C):</label>
+                            <input type="number" id="setting-hdd-warn" min="30" max="100" value="50">
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="hdd_critical">HDD kritisk (°C):</label>
+                            <input type="number" id="setting-hdd-crit" min="30" max="100" value="60">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="consecutive_readings">Påfølgende målinger:</label>
+                        <input type="number" id="setting-consecutive" min="1" max="10" value="4">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="setting-normalize-alert">
+                            <span data-i18n="alert_on_normalize">Varsle ved normalisering</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- GDC Tab -->
+                <div id="tab-gdc" class="tab-content">
+                    <h3 data-i18n="gdc_settings">Ghost Drive Condition</h3>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="setting-gdc-enabled" checked>
+                            <span data-i18n="enable_gdc">Aktiver GDC-deteksjon</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="failed_polls_threshold">Mislykket polls-terskel:</label>
+                        <input type="number" id="setting-gdc-threshold" min="1" max="20" value="5">
+                    </div>
+                </div>
+
+                <!-- Security Tab -->
+                <div id="tab-security" class="tab-content">
+                    <h3>🛡️ <span data-i18n="security_settings">Sikkerhetsinnstillinger</span></h3>
+                    
+                    <div class="security-section">
+                        <h4 data-i18n="emergency_unmount_title">Emergency Unmount</h4>
+                        
+                        <div class="warning-box">
+                            <strong>⚠️ <span data-i18n="warning">ADVARSEL</span>:</strong>
+                            <span data-i18n="emergency_unmount_warning">
+                                Dette kan automatisk fjerne kritisk feilende disker fra systemet.
+                                Kun bruk hvis du forstår konsekvensene.
+                            </span>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="setting-emergency-unmount-active">
+                                <strong data-i18n="enable_emergency_unmount">Aktiver Emergency Unmount (ACTIVE mode)</strong>
+                            </label>
+                            <small style="display: block; margin-top: 8px; color: #666;">
+                                <span data-i18n="emergency_unmount_description">
+                                    Når aktivert vil systemet automatisk unmounte disker som når EMERGENCY-status.
+                                </span>
+                            </small>
+                        </div>
+                        
+                        <div class="status-info" id="emergency-unmount-status">
+                            <strong data-i18n="current_status">Status:</strong> 
+                            <span id="emergency-mode-indicator" class="status-badge passive">
+                                PASSIVE (trygt - kun logging)
+                            </span>
+                        </div>
+                        
+                        <div class="info-box">
+                            <strong data-i18n="protection_guarantees">Beskyttelse:</strong>
+                            <ul>
+                                <li data-i18n="protection_1">✅ Aldri unmount kritiske stier: /, /boot, /home, /usr, /var</li>
+                                <li data-i18n="protection_2">✅ 30 minutters cooldown mellom forsøk per disk</li>
+                                <li><span data-i18n="protection_3">✅ Kun når status = EMERGENCY og kan utføre nødstopp = true</span></li>
+                                <li data-i18n="protection_4">✅ Full logging før/under/etter unmount</li>
+                                <li data-i18n="protection_5">✅ Default til PASSIVE ved config-feil</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="action-buttons">
+                            <button onclick="App.testEmergencyUnmount()" class="btn-secondary">
+                                🧪 <span data-i18n="test_emergency_unmount">Test Emergency Unmount</span>
+                            </button>
+                            <button onclick="App.openDocumentation()" class="btn-info">
+                                📖 <span data-i18n="view_documentation">Se dokumentasjon</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logging Tab -->
+                <div id="tab-logging" class="tab-content">
+                    <h3 data-i18n="logging_settings">Logging-innstillinger</h3>
+                    <div class="form-group">
+                        <label data-i18n="retention_size">Log retention (KB):</label>
+                        <input type="number" id="setting-log-retention" min="100" max="10240" value="1024">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="setting-rolling-logs" checked>
+                            <span data-i18n="rolling_logs">Rullerende logger</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="verbosity">Verbosity:</label>
+                        <select id="setting-verbosity">
+                            <option value="debug">Debug</option>
+                            <option value="info" selected>Info</option>
+                            <option value="warning">Warning</option>
+                            <option value="error">Error</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Alert Channels Tab -->
+                <div id="tab-channels" class="tab-content">
+                    <h3 data-i18n="alert_channels">Varslingskanaler</h3>
+                    <div class="alert-channel">
+                        <h4>📧 E-post</h4>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="setting-email-enabled">
+                                <span data-i18n="enable_email">Aktiver e-postvarsling</span>
+                            </label>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label data-i18n="smtp_server">SMTP-server:</label>
+                                <input type="text" id="setting-email-server" placeholder="smtp.gmail.com">
+                            </div>
+                            <div class="form-group">
+                                <label data-i18n="smtp_port">SMTP-port:</label>
+                                <input type="number" id="setting-email-port" value="587">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="setting-email-tls">
+                                <span>Use TLS</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="setting-email-starttls">
+                                <span>Use STARTTLS</span>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="smtp_username">SMTP brukernavn:</label>
+                            <input type="text" id="setting-email-user" placeholder="din@epost.no">
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="smtp_password">SMTP passord:</label>
+                            <input type="password" id="setting-email-pass" placeholder="(leave blank to keep)">
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="from_email">Fra-adresse:</label>
+                            <input type="text" id="setting-email-from" placeholder="alerts@domain.no">
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="to_emails">Til-adresser (én per linje):</label>
+                            <textarea id="setting-email-to" rows="3" placeholder="mottaker@domain.no"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="send_alerts_for">Send varsler for:</label>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" id="setting-email-info"> Info</label>
+                                <label><input type="checkbox" id="setting-email-warning"> Warning</label>
+                                <label><input type="checkbox" id="setting-email-high"> High</label>
+                                <label><input type="checkbox" id="setting-email-critical"> Critical</label>
+                            </div>
+                        </div>
+                        <button onclick="App.testEmail()" class="btn-primary" data-i18n="test_email">Test e-post</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Footer -->
+            <div class="modal-footer">
+                <button onclick="App.saveSettings()" class="btn-success" data-i18n="save_all">Lagre alle innstillinger</button>
+                <button onclick="App.closeSettings()" class="btn-secondary" data-i18n="cancel">Avbryt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="historyModal" class="modal">
+        <div class="modal-content medium">
+            <div class="modal-header">
+                <h2 id="history-title">Disk History</h2>
+                <div class="modal-header-actions">
+                    <button class="btn-secondary btn-small" onclick="App.printHistory()">
+                        🖨️ <span data-i18n="print">Skriv ut</span>
+                    </button>
+                    <button class="close-btn" onclick="App.closeHistory()">✕</button>
+                </div>
+            </div>
+            <div id="history-content" class="modal-body">
+                <!-- Charts will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- All Logs Modal -->
+    <div id="allLogsModal" class="modal">
+        <div class="modal-content medium">
+            <div class="modal-header">
+                <h2 data-i18n="all_logs_title">Alle loggfiler</h2>
+                <button class="close-btn" onclick="App.closeAllLogs()">✕</button>
+            </div>
+            <div id="all-logs-content" class="modal-body">
+                <p class="info-text" data-i18n="all_logs_description">
+                    Her finner du alle tilgjengelige loggfiler, inkludert frakoblede eller GDC-disker.
+                </p>
+                <div id="all-logs-list" class="logs-list">
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                        <p data-i18n="loading_logs">Laster loggfiler...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- About Modal -->
+    <div id="aboutModal" class="modal">
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h2 data-i18n="about_title">Om MoSMART Monitor</h2>
+                <button class="close-btn" onclick="App.closeAbout()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="about-version">
+                    <h1>v0.9 beta</h1>
+                </div>
+                <div class="about-contact">
+                    <h3 data-i18n="contact_info">Kontaktinformasjon</h3>
+                    <p><strong data-i18n="created_by">Laget av:</strong> Modigs Datahjelp</p>
+                    <p><strong>E-post:</strong> <a href="mailto:kontakt@modigs-datahjelp.no">kontakt@modigs-datahjelp.no</a></p>
+                </div>
+                <div class="about-docs">
+                    <h3 data-i18n="documentation">Dokumentasjon</h3>
+                    <a href="{{ documentation_link }}" id="doc-link" target="_blank" class="doc-link">📖 <span data-i18n="user_manual">Brukermanual</span></a>
+                    <br><br>
+                    <a href="http://modigs-datahjelp.no/saker/mosmart.html" target="_blank" class="doc-link">🌐 MoSmart documentation</a>
+                </div>
+                <div class="about-features">
+                    <h3 data-i18n="features_include">Funksjoner</h3>
+                    <ul>
+                        <li>S.M.A.R.T. disk monitoring</li>
+                        <li>Ghost Drive Condition (GDC) detection</li>
+                        <li>Health score tracking & trends</li>
+                        <li>E-mail alerts</li>
+                        <li>Multilangual support</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load JavaScript -->
+    <script src="{{ url_for('static', filename='main_new.js') }}?v=20251227c"></script>
+    <script>
+        // Initialize app with backend config
+        window.addEventListener('DOMContentLoaded', () => {
+            App.init({
+                refreshInterval: {{ refresh_interval }},
+                language: '{{ language }}'
+            });
+        });
+    </script>
+</body>
+</html>
