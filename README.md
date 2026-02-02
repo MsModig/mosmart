@@ -52,6 +52,17 @@ sudo pacman -S smartmontools python-pip
 
 ## Installasjon
 
+### Installer via PyPI (anbefalt)
+
+```bash
+pip install mosmart
+```
+
+**Kjør web-dashboardet:**
+```bash
+sudo mosmart
+```
+
 1. **Installer systemavhengigheter**
    ```bash
    sudo apt update
@@ -75,6 +86,15 @@ sudo pacman -S smartmontools python-pip
    ```bash
    source venv/bin/activate
    ```
+
+## Quick Start (PyPI)
+
+```bash
+pip install mosmart
+sudo mosmart
+```
+
+Åpne deretter nettleseren din og gå til: **http://localhost:5000**
 
 ## Bruk
 
