@@ -2,6 +2,15 @@
 
 Et Python-basert verktøy for å lese og tolke S.M.A.R.T. (Self-Monitoring, Analysis and Reporting Technology) data fra harddisker på Linux-systemer.
 
+## 🚀 Rask Installasjon
+
+```bash
+pip install mosmart
+sudo mosmart
+```
+
+Åpne **http://localhost:5000** i nettleseren din.
+
 ## Funksjoner
 
 - 📊 Skann og vis alle tilgjengelige lagringsenheter
