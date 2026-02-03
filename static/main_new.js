@@ -680,8 +680,8 @@ App.renderUsageMetrics = function(device) {
                 : this.t('tooltip_lifetime_remaining');
     
     if (device.power_on_hours !== null && device.power_on_hours !== undefined) {
-        // Use pre-formatted string from backend if available, otherwise format client-side
-        const formattedTime = device.power_on_formatted || this.formatPowerOnHours(device.power_on_hours);
+        // Always format client-side to reflect current language
+        const formattedTime = this.formatPowerOnHours(device.power_on_hours);
         metrics.push(`
             <div class="usage-metric">
                 <div class="usage-label" title="${this.t('tooltip_power_on_hours')}">⏱ ${this.t('power_on_hours')}</div>
@@ -976,20 +976,23 @@ App.formatPowerOnHours = function(hours) {
     if (hours === null || hours === undefined) return 'N/A';
     
     if (hours === 0) {
-        return `0 ${App.t('time_hours')} (0 H)`;
+        return `0 ${App.t('time_hours')} (0 ${App.t('time_total_hours')})`;
     }
     
     const years = Math.floor(hours / 8760);
     const remainingAfterYears = hours % 8760;
-    const days = Math.floor(remainingAfterYears / 24);
-    const hoursLeft = remainingAfterYears % 24;
+    const months = Math.floor(remainingAfterYears / 730);
+    const remainingAfterMonths = remainingAfterYears % 730;
+    const days = Math.floor(remainingAfterMonths / 24);
+    const hoursLeft = remainingAfterMonths % 24;
     
     const parts = [];
     if (years > 0) parts.push(`${years} ${App.t('time_years')}`);
+    if (months > 0) parts.push(`${months} ${App.t('time_months')}`);
     if (days > 0) parts.push(`${days} ${App.t('time_days')}`);
     if (hoursLeft > 0) parts.push(`${hoursLeft} ${App.t('time_hours')}`);
     
-    return `${parts.join(', ')} (${hours} H)`;
+    return `${parts.join(', ')} (${hours.toLocaleString()} ${App.t('time_total_hours')})`;
 };
 
 App.updateLastUpdate = function() {

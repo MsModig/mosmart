@@ -34,7 +34,7 @@ from datetime import datetime
 from pathlib import Path
 from flask import Flask, render_template, jsonify, request, send_file
 from flask_cors import CORS
-from smart_monitor import SMARTMonitor, calculate_health_score, format_health_rating, format_power_on_time, detect_ghost_drive_condition
+from smart_monitor import SMARTMonitor, calculate_health_score, format_health_rating, detect_ghost_drive_condition
 from pySMART import DeviceList
 import disk_logger
 from disk_logger import log_disk_health, get_disk_history, get_recent_warnings, log_gdc_event_to_disk
@@ -68,6 +68,57 @@ config = {
     'enable_logging': True,  # enable automatic health logging
     'max_log_size_kb': 1024  # maximum log size per disk in KB
 }
+
+def format_power_on_time_localized(hours: int, language: str) -> str:
+    """
+    Convert power-on hours to a human-readable, localized format.
+    - For < 24 hours: Show decimal hours (e.g., "17.8 hours")
+    - For ≥ 24 hours: Show years, months, days, hours breakdown
+    """
+    if hours is None:
+        return 'N/A'
+
+    units_by_lang = {
+        'no': {
+            'years': 'år',
+            'months': 'md',
+            'days': 'd',
+            'hours': 't',
+            'hours_full': 'timer',
+            'total_hours': 'timer totalt'
+        },
+        'en': {
+            'years': 'years',
+            'months': 'mo',
+            'days': 'd',
+            'hours': 'h',
+            'hours_full': 'hours',
+            'total_hours': 'total hours'
+        }
+    }
+    units = units_by_lang.get(language, units_by_lang['en'])
+
+    if hours < 24:
+        return f"{hours:.1f} {units['hours_full']}"
+
+    years = hours // 8760  # 365 * 24
+    remaining = hours % 8760
+    months = remaining // 730  # ~30.4 * 24
+    remaining = remaining % 730
+    days = remaining // 24
+    remaining_hours = remaining % 24
+
+    parts = []
+    if years > 0:
+        parts.append(f"{years} {units['years']}")
+    if months > 0:
+        parts.append(f"{months} {units['months']}")
+    if days > 0 or (years == 0 and months == 0):
+        parts.append(f"{days} {units['days']}")
+    if remaining_hours > 0 or len(parts) == 0:
+        parts.append(f"{remaining_hours} {units['hours']}")
+
+    return ", ".join(parts) + f" ({hours:,} {units['total_hours']})"
 
 # Cache for warnings to avoid repeated filesystem scans
 warnings_cache = {}
@@ -754,6 +805,7 @@ def _scan_single_device(device_name):
         
         # Load config
         worker_config = load_config()
+        language = worker_config.get('general', {}).get('language', config.get('language', 'en'))
         
         print(f"🔧 {device_name}: Creating Device object...")
         dev = Device(device_name)
@@ -832,7 +884,7 @@ def _scan_single_device(device_name):
                 print(f"📊 {device_name}: Applying fallback data - power_on_hours={fallback_data['power_on_hours']}")
                 
                 if fallback_data['power_on_hours']:
-                    device_data['power_on_formatted'] = format_power_on_time(fallback_data['power_on_hours'])
+                    device_data['power_on_formatted'] = format_power_on_time_localized(fallback_data['power_on_hours'], language)
                     print(f"📊 {device_name}: Formatted power_on_time: {device_data['power_on_formatted']}")
                 else:
                     print(f"⚠️ {device_name}: No power_on_hours in fallback data!")
@@ -1001,20 +1053,20 @@ def _scan_single_device(device_name):
                                     total_seconds = hours * 3600 + minutes * 60 + seconds
                                     hours_calculated = total_seconds // 3600
                                     device_data['power_on_hours'] = hours_calculated
-                                    device_data['power_on_formatted'] = format_power_on_time(hours_calculated)
+                                    device_data['power_on_formatted'] = format_power_on_time_localized(hours_calculated, language)
                                     print(f"🕐 {device_name}: Power_On_Seconds (pySMART): {raw_str} = {hours_calculated} hours")
                             else:
                                 # Plain number - assume it's seconds
                                 seconds = int(raw_str.split()[0])
                                 hours_calculated = seconds // 3600
                                 device_data['power_on_hours'] = hours_calculated
-                                device_data['power_on_formatted'] = format_power_on_time(hours_calculated)
+                                device_data['power_on_formatted'] = format_power_on_time_localized(hours_calculated, language)
                                 print(f"🕐 {device_name}: Power_On_Seconds (pySMART): {seconds}s = {hours_calculated} hours")
                         else:
                             # Power_On_Hours - use directly
                             hours = int(str(power_on_attr.raw).split()[0])
                             device_data['power_on_hours'] = hours
-                            device_data['power_on_formatted'] = format_power_on_time(hours)
+                            device_data['power_on_formatted'] = format_power_on_time_localized(hours, language)
                             print(f"🕐 {device_name}: Power_On_Hours (pySMART): {hours} hours")
                     except (ValueError, TypeError, AttributeError) as e:
                         print(f"⚠️ {device_name}: Failed to parse power_on_hours: {e}")
@@ -1026,7 +1078,7 @@ def _scan_single_device(device_name):
                     fallback_data, _ = _parse_smartctl_json_fallback(device_name)
                     if fallback_data and fallback_data.get('power_on_hours') is not None:
                         device_data['power_on_hours'] = fallback_data['power_on_hours']
-                        device_data['power_on_formatted'] = format_power_on_time(fallback_data['power_on_hours'])
+                        device_data['power_on_formatted'] = format_power_on_time_localized(fallback_data['power_on_hours'], language)
                         print(f"✅ {device_name}: Got power_on_hours from fallback: {fallback_data['power_on_hours']} hours")
                 
                 # Get power cycle count (ID 12)
