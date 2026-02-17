@@ -1,0 +1,107 @@
+#!/bin/bash
+# MoSMART Desktop GUI Startup Script
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Check if Python 3 is available
+if ! command -v python3 &> /dev/null; then
+    echo -e "${RED}❌ Python 3 is not installed${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}🚀 MoSMART Desktop GUI Launcher${NC}"
+echo ""
+
+# Get script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
+
+# Virtual environment path
+VENV_DIR="$SCRIPT_DIR/.venv-gui"
+
+# Check if venv exists, create if not
+if [ ! -d "$VENV_DIR" ]; then
+    echo -e "${YELLOW}📦 Creating virtual environment...${NC}"
+    python3 -m venv "$VENV_DIR"
+    echo -e "${GREEN}✅ Virtual environment created${NC}"
+fi
+
+# Activate virtual environment
+source "$VENV_DIR/bin/activate"
+echo -e "${BLUE}🔧 Using virtual environment: $VENV_DIR${NC}"
+
+# Check if PyQt5 is installed in venv
+python3 -c "import PyQt5" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo -e "${YELLOW}⚠️  Installing PyQt5 in virtual environment...${NC}"
+    pip install --quiet --upgrade pip
+    pip install PyQt5 PyQtChart requests
+    echo -e "${GREEN}✅ Dependencies installed${NC}"
+fi
+
+echo ""
+
+# Check if GUI file exists
+if [ ! -f "gui_monitor.py" ]; then
+    echo -e "${RED}❌ gui_monitor.py not found in $SCRIPT_DIR${NC}"
+    exit 1
+fi
+
+# Check if backend is running
+check_backend() {
+    python3 -c "import requests; requests.get('http://localhost:5000/api/devices', timeout=2)" 2>/dev/null
+    return $?
+}
+
+# Option to start backend
+if ! check_backend; then
+    echo -e "${YELLOW}⚠️  Backend server is not running${NC}"
+    echo ""
+    read -p "Start backend server now? (y/n) " -n 1 -r
+    echo
+    
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${GREEN}Starting backend server...${NC}"
+        
+        # Start backend in background
+        python3 web_monitor.py --port 5000 > /tmp/mosmart_backend.log 2>&1 &
+        BACKEND_PID=$!
+        echo "Backend PID: $BACKEND_PID"
+        
+        # Wait for backend to start
+        sleep 2
+        
+        if check_backend; then
+            echo -e "${GREEN}✅ Backend server started successfully${NC}"
+        else
+            echo -e "${RED}❌ Failed to start backend server${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${RED}❌ Backend server is required to run the GUI${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}✅ Backend server is already running${NC}"
+fi
+
+echo ""
+echo -e "${GREEN}Starting GUI...${NC}"
+
+# Start GUI
+python3 gui_monitor.py
+
+# Cleanup: Kill backend if we started it
+if [ ! -z "$BACKEND_PID" ]; then
+    echo -e "${YELLOW}Shutting down backend server...${NC}"
+    kill $BACKEND_PID 2>/dev/null || true
+fi
+
+echo -e "${GREEN}✅ Goodbye!${NC}"

@@ -4,11 +4,19 @@
 # Licensed under GPLv3. See LICENSE for details.
 
 import json
+import os
 from pathlib import Path
 from typing import Dict, Any
 
 # Configuration file location
-CONFIG_DIR = Path.home() / '.mosmart'
+# Use /etc/mosmart when running as root, ~/.mosmart otherwise
+if os.getuid() == 0:
+    # Running as root (systemd service or sudo)
+    CONFIG_DIR = Path('/etc/mosmart')
+else:
+    # Running as regular user
+    CONFIG_DIR = Path.home() / '.mosmart'
+
 CONFIG_FILE = CONFIG_DIR / 'settings.json'
 
 # Default configuration
@@ -17,7 +25,8 @@ DEFAULT_CONFIG = {
     'general': {
         'language': 'no',
         'polling_interval': 60,
-        'temperature_unit': 'C'
+        'temperature_unit': 'C',
+        'enable_webui': True  # WebUI enabled by default
     },
     
     # Disk Selection

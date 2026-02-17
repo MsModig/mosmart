@@ -37,7 +37,7 @@ from flask_cors import CORS
 from smart_monitor import SMARTMonitor, calculate_health_score, format_health_rating, detect_ghost_drive_condition
 from pySMART import DeviceList
 import disk_logger
-from disk_logger import log_disk_health, get_disk_history, get_recent_warnings, log_gdc_event_to_disk
+from disk_logger import log_disk_health, get_disk_history, get_recent_warnings, log_gdc_event_to_disk, LOG_DIR
 from gdc import GDCManager, GDCState
 import gdc_logger
 from gdc_logger import log_gdc_event, get_worst_gdc_state, has_gdc_history, restore_gdc_state_from_history
@@ -59,6 +59,22 @@ TRANSLATIONS_FILE = Path(__file__).parent / 'translations.json'
 with open(TRANSLATIONS_FILE, 'r', encoding='utf-8') as f:
     TRANSLATIONS = json.load(f)
 
+# WebUI enable/disable middleware - check before each request
+@app.before_request
+def check_webui_enabled():
+    """Check if WebUI is enabled before handling request"""
+    config_data = load_config()
+    if not config_data.get('general', {}).get('enable_webui', True):
+        return jsonify({
+            'error': 'WebUI is currently disabled',
+            'message': 'The web interface has been turned off. Use the GUI or API to re-enable it.'
+        }), 503
+
+# Load translations
+TRANSLATIONS_FILE = Path(__file__).parent / 'translations.json'
+with open(TRANSLATIONS_FILE, 'r', encoding='utf-8') as f:
+    TRANSLATIONS = json.load(f)
+
 # Configuration
 config = {
     'port': 5000,
@@ -68,6 +84,9 @@ config = {
     'enable_logging': True,  # enable automatic health logging
     'max_log_size_kb': 1024  # maximum log size per disk in KB
 }
+
+# Service start time (for uptime tracking in API)
+service_start_time = time.time()
 
 def format_power_on_time_localized(hours: int, language: str) -> str:
     """
@@ -1181,14 +1200,20 @@ def _scan_single_device(device_name):
                 
                 # Derive health state from score (backend decides, frontend displays)
                 score = health_score['total']
-                if score >= 90:
-                    device_data['health_state'] = 'excellent'
-                elif score >= 70:
-                    device_data['health_state'] = 'good'
-                elif score >= 50:
-                    device_data['health_state'] = 'warning'
+                if score >= 95:
+                    device_data['health_state'] = 'excellent'  # 95-100: Blue
+                elif score >= 80:
+                    device_data['health_state'] = 'good'       # 80-94: Green
+                elif score >= 60:
+                    device_data['health_state'] = 'acceptable' # 60-79: Yellow
+                elif score >= 40:
+                    device_data['health_state'] = 'warning'    # 40-59: Orange
+                elif score >= 20:
+                    device_data['health_state'] = 'poor'       # 20-39: Red
+                elif score >= 0:
+                    device_data['health_state'] = 'critical'   # 0-19: Red (darker)
                 else:
-                    device_data['health_state'] = 'critical'
+                    device_data['health_state'] = 'dead'       # <0: Dead/Zombie
                 
                 # Check for escalated attributes (backend authority - frontend must not infer)
                 escalated = []
@@ -2474,6 +2499,80 @@ def api_translations():
     """API endpoint to get all translations"""
     return jsonify(TRANSLATIONS)
 
+@app.route('/api/permissions')
+def api_permissions():
+    """
+    Get user permissions and role.
+    
+    Current Implementation (Phase 3):
+    - Always returns "admin" since backend runs as root
+    - Endpoint ready for Phase 4 when auth is implemented
+    
+    Future (Phase 4): Will check auth tokens/socket credentials
+    - "admin" - Full access via authenticated admin users
+    - "read-only" - View-only access via regular users
+    """
+    try:
+        # Get username from environment
+        # SUDO_USER set when running with sudo, USER otherwise
+        username = os.environ.get('SUDO_USER')
+        if not username:
+            username = os.environ.get('USER', 'unknown')
+        
+        # Phase 3: Backend always admin (runs as root with sudo)
+        # Phase 4: Will implement proper auth checking
+        is_admin = True  # TODO: Implement proper auth in Phase 4
+        
+        return jsonify({
+            'role': 'admin' if is_admin else 'read-only',
+            'username': username,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        print(f"Error getting permissions: {e}")
+        return jsonify({'error': str(e), 'role': 'read-only'}), 500
+
+@app.route('/api/config', methods=['GET'])
+def api_get_config():
+    """Get current configuration (read-only)"""
+    try:
+        config_data = load_config()
+        return jsonify(config_data)
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/config', methods=['POST'])
+def api_set_config():
+    """
+    Update configuration (admin only).
+    Requires root/sudo access.
+    """
+    try:
+        # Check permissions
+        if os.getuid() != 0:
+            return jsonify({
+                'error': 'Admin access required. Please run backend with sudo.',
+                'role': 'read-only'
+            }), 403
+        
+        # Get new config
+        new_config = request.get_json()
+        if not new_config:
+            return jsonify({'error': 'No configuration provided'}), 400
+        
+        # Save config
+        save_config(new_config)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Configuration updated',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        print(f"Error saving config: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/devices')
 def api_devices():
     """API endpoint to get all devices"""
@@ -2925,6 +3024,140 @@ def api_test_email_alias():
     """Alias for /api/email/test - for frontend compatibility"""
     return api_email_test()
 
+def get_external_health():
+    """
+    Get comprehensive system health and disk information.
+    
+    Backend function independent of WebUI/Flask that provides health data.
+    Can be called from:
+    - Web API endpoint (/api/external/health)
+    - CLI tools
+    - Other external services
+    - Background tasks
+    
+    Returns:
+        dict: System status with disk health data, warnings, and GDC states
+    """
+    global service_start_time
+    
+    # Scan all devices
+    scan_error = None
+    try:
+        devices = scan_all_devices()
+    except Exception as e:
+        print(f"❌ External health scan failed: {e}")
+        devices = []
+        scan_error = str(e)
+    
+    # Get recent warnings from alert engine
+    warnings = []
+    # Note: get_recent_warnings() requires model and serial per disk,
+    # so we skip generic warnings collection for now.
+    # Device-specific warnings are included in the disks array.
+    
+    # Extract GDC states for all devices
+    gdc_states = {}
+    try:
+        for device_name, manager in gdc_managers.items():
+            gdc_states[device_name] = {
+                'state': manager.state.value,
+                'timeouts': manager.timeouts,
+                'successes': manager.successes,
+                'confidence': manager.confidence
+            }
+    except Exception as e:
+        print(f"⚠️ Could not build GDC states: {e}")
+    
+    # Build simplified disk array
+    disks_simplified = []
+    for device in devices:
+        disk_info = {
+            'name': device.get('name'),
+            'model': device.get('model'),
+            'serial': device.get('serial'),
+            'capacity': device.get('capacity'),
+            'health_score': device.get('health_score', 0),
+            'health_rating': device.get('health_rating', 'UNKNOWN'),
+            'temperature': device.get('temperature'),
+            'power_on_hours': device.get('power_on_hours'),
+            'interface': device.get('interface'),
+            'responsive': device.get('responsive', True),
+            'has_warnings': device.get('has_warnings', False),
+            'gdc_state': gdc_states.get(device.get('name'), {}).get('state', 'OK')
+        }
+        
+        # Add critical SMART attributes
+        attributes = device.get('attributes', {})
+        disk_info['smart_critical'] = {
+            'reallocated_sectors': attributes.get('5', {}).get('raw', 0),
+            'pending_sectors': attributes.get('197', {}).get('raw', 0),
+            'uncorrectable_errors': attributes.get('198', {}).get('raw', 0),
+            'power_cycle_count': attributes.get('12', {}).get('raw', 0)
+        }
+        
+        disks_simplified.append(disk_info)
+    
+    # Calculate uptime
+    try:
+        uptime_seconds = int(time.time() - service_start_time)
+    except Exception:
+        uptime_seconds = 0
+    
+    health_data = {
+        'installed': True,
+        'version': '0.9.3',
+        'service': 'MoSMART',
+        'timestamp': datetime.now().isoformat(),
+        'uptime_seconds': uptime_seconds,
+        'system': get_system_info(),
+        'disks': disks_simplified,
+        'disk_count': len(disks_simplified),
+        'warnings': warnings,
+        'warning_count': len(warnings),
+        'gdc_states': gdc_states,
+        'scan_error': scan_error,
+        'api_endpoints': {
+            'full_devices': '/api/devices',
+            'device_detail': '/api/device/<device_name>',
+            'device_history': '/api/history/<model>/<serial>',
+            'force_scan': '/api/force-scan (POST)',
+            'external_health': '/api/external/health'
+        }
+    }
+    
+    return health_data
+
+@app.route('/api/external/health')
+def api_external_health():
+    """
+    External Health Check Endpoint
+    
+    Provides comprehensive system status and disk information for external tools.
+    This endpoint is generic and not tied to any specific external application.
+    
+    Can be used by:
+    - Disk wiping tools (MoWIPE)
+    - System monitoring dashboards
+    - Third-party health checkers
+    - Any external service that needs disk health data
+    
+    Example usage:
+        curl -s http://localhost:5000/api/external/health | jq .
+    
+    Returns:
+        JSON object with:
+        - installed: true/false (always true if reachable)
+        - version: MoSMART version string
+        - timestamp: ISO 8601 timestamp
+        - uptime: Service uptime in seconds
+        - system: System information (OS, hostname, etc.)
+        - disks: Array of disk objects with health data
+        - warnings: Array of current warnings/alerts
+        - gdc_states: Ghost Drive Condition states for all disks
+    """
+    health_data = get_external_health()
+    return jsonify(health_data)
+
 @app.route('/api/settings', methods=['GET'])
 def api_get_settings():
     """Get all settings"""
@@ -3125,7 +3358,7 @@ def api_export_logs():
     from io import BytesIO
     from flask import send_file
     
-    log_dir = Path.home() / '.mosmart'
+    log_dir = LOG_DIR.parent  # Go up one level to include all disk logs
     
     # Create in-memory ZIP
     memory_file = BytesIO()
@@ -3210,7 +3443,7 @@ def api_device_label_data(device_name):
 @app.route('/api/logs/all')
 def api_list_all_logs():
     """List all available disk logs (for disconnected/GDC disks)"""
-    log_base_dir = Path.home() / '.mosmart' / 'logs'
+    log_base_dir = LOG_DIR
     
     if not log_base_dir.exists():
         return jsonify({'disks': []})
@@ -3275,7 +3508,7 @@ def api_view_disk_log(model, serial):
     """View raw log files for a specific disk"""
     # Create disk_id same way as disk_logger does
     disk_id = f"{model}_{serial}".replace(' ', '_').replace('/', '-')
-    log_dir = Path.home() / '.mosmart' / 'logs' / disk_id
+    log_dir = LOG_DIR / disk_id
     
     if not log_dir.exists():
         return jsonify({'error': 'No logs found for this disk'}), 404
@@ -3308,7 +3541,7 @@ def api_view_disk_log_full(model, serial):
     """View FULL log files for a specific disk (all entries)"""
     # Create disk_id same way as disk_logger does
     disk_id = f"{model}_{serial}".replace(' ', '_').replace('/', '-')
-    log_dir = Path.home() / '.mosmart' / 'logs' / disk_id
+    log_dir = LOG_DIR / disk_id
     
     if not log_dir.exists():
         return jsonify({'error': 'No logs found for this disk'}), 404
@@ -3371,6 +3604,12 @@ def main():
     )
     
     parser.add_argument(
+        '--check-health',
+        action='store_true',
+        help='Check and display external health status (no WebUI)'
+    )
+    
+    parser.add_argument(
         '--no-logging',
         action='store_true',
         help='Disable automatic health logging'
@@ -3384,8 +3623,17 @@ def main():
     
     args = parser.parse_args()
     
+    # Handle --check-health flag (CLI only, no WebUI)
+    if args.check_health:
+        health_data = get_external_health()
+        print(json.dumps(health_data, indent=2))
+        sys.exit(0)
+    
     # Load saved settings from config_manager
     saved_config = load_config()
+    
+    # Check if WebUI is enabled at startup
+    webui_enabled = saved_config.get('general', {}).get('enable_webui', True)
     
     # Apply command-line args (override saved settings)
     config['port'] = args.port
@@ -3398,7 +3646,10 @@ def main():
     config['monitored_devices'] = saved_config.get('disk_selection', {}).get('monitored_devices', {})
     
     print(f"Starting S.M.A.R.T. Web Monitor...")
-    print(f"Dashboard: http://{args.host}:{args.port}")
+    if webui_enabled:
+        print(f"Dashboard: http://{args.host}:{args.port}")
+    else:
+        print(f"⚠️  WebUI is DISABLED - Dashboard not available")
     print(f"Auto-refresh: {config['refresh_interval']} seconds")
     
     # Start background scanner thread for automatic logging
@@ -3414,6 +3665,18 @@ def main():
     if platform.system() != 'Windows' and os.geteuid() != 0:
         print("\n⚠️  Warning: Not running as root. S.M.A.R.T. data may not be accessible.")
         print("   Run with: sudo python3 web_monitor.py\n")
+    
+    # Only start WebUI if enabled
+    if not webui_enabled:
+        print("🛑 WebUI disabled. MoSMART running in background mode only.")
+        # Keep process alive but don't start web server
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            background_scanner_running = False
+            print("\n✓ MoSMART stopped")
+            sys.exit(0)
     
     if args.dev:
         # Development server

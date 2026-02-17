@@ -1,0 +1,49 @@
+# MANIFEST.in - Specifies files to include in distribution
+
+# Documentation
+include README.md
+include README-NO.md
+include CHANGELOG.md
+include LICENSE
+include COPYRIGHT
+include INSTALL_REQUIREMENTS.md
+
+# Python files (included automatically)
+recursive-include . *.py
+
+# Web assets
+recursive-include templates *.html
+recursive-include static *.js *.css
+
+# Assets
+include *.png
+include apple-touch-icon.png
+include web-app-manifest-192x192.png
+include web-app-manifest-512x512.png
+
+# Configuration files
+include translations.json
+recursive-include languages *.lang
+
+# Service files
+include mosmart.service
+include install.sh
+include uninstall.sh
+include update.sh
+include start_gui.sh
+include start_gui_simple.sh
+include start_gui.bat
+
+# Exclude from distribution
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude .git
+global-exclude .gitignore
+global-exclude .vscode
+global-exclude .idea
+global-exclude *.log
+global-exclude *.jsonl
+global-exclude venv
+global-exclude env
+global-exclude test_*.py
+global-exclude *_IMPLEMENTATION.md

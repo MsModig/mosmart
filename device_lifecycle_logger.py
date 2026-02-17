@@ -20,7 +20,15 @@ class DeviceLifecycleLogger:
     """
     
     def __init__(self, log_dir: Path = None):
-        self.log_dir = log_dir or Path.home() / '.mosmart' / 'device_events'
+        if log_dir is None:
+            # Use /var/lib/mosmart when running as root, ~/.mosmart otherwise
+            import os
+            if os.getuid() == 0:
+                log_dir = Path('/var/lib/mosmart/device_events')
+            else:
+                log_dir = Path.home() / '.mosmart' / 'device_events'
+        
+        self.log_dir = log_dir
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.log_file = self.log_dir / 'lifecycle.jsonl'
     

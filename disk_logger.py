@@ -42,8 +42,17 @@ try:
 except ImportError:
     EMERGENCY_ACTIONS_AVAILABLE = False
 
-# Log directory structure: ~/.mosmart/logs/{disk_id}/YYYY-MM-DD.jsonl
-LOG_DIR = Path.home() / '.mosmart' / 'logs'
+# Log directory structure
+# Use /var/log/mosmart when running as root (systemd service)
+# Use ~/.mosmart/logs when running as regular user
+import os
+if os.getuid() == 0:
+    # Running as root (systemd service or sudo)
+    LOG_DIR = Path('/var/log/mosmart')
+else:
+    # Running as regular user
+    LOG_DIR = Path.home() / '.mosmart' / 'logs'
+
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Maximum log file size before rotation (1024 KB = 1 MB)

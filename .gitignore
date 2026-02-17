@@ -29,6 +29,9 @@ env/
 ENV/
 env.bak/
 venv.bak/
+.venv-gui/
+.venv/
+.mosmart-venv/
 
 # IDE
 .vscode/
@@ -40,9 +43,6 @@ venv.bak/
 # OS
 .DS_Store
 Thumbs.db
-
-# Test files (development only)
-test_*.py
 
 # Development/Implementation documentation
 *_IMPLEMENTATION.md

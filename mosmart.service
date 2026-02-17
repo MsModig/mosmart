@@ -1,16 +1,28 @@
 [Unit]
-Description=MoSMART Disk Monitor
+Description=MoSMART Disk Monitor - Backend Service
 After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/home/magnus/mosmart
-ExecStart=/home/magnus/mosmart/venv/bin/python3 /home/magnus/mosmart/web_monitor.py
+Group=root
+WorkingDirectory=/opt/mosmart
+
+# Use the venv's Python to run web_monitor.py
+ExecStart=/opt/mosmart-venv/bin/python3 /opt/mosmart/web_monitor.py
+
+# Ensure logs are written to proper directory
+StandardOutput=append:/var/log/mosmart/backend.log
+StandardError=append:/var/log/mosmart/backend.log
+
+# Service restart behavior
 Restart=always
 RestartSec=10
-StandardOutput=append:/var/log/mosmart.log
-StandardError=append:/var/log/mosmart.log
+
+# Security: Don't allow mounting/unmounting filesystems
+PrivateDevices=no
+ProtectSystem=no
+ProtectHome=no
 
 [Install]
 WantedBy=multi-user.target

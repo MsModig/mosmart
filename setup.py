@@ -10,9 +10,9 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="mosmart",
-    version="0.9.3",
+    version="0.9.4",
     author="Magnus Modig",
-    author_email="magnus@modig.no",
+    author_email="kontakt@modigs-datahjelp.no",
     description="S.M.A.R.T Monitor Tool for Linux - Real-time disk health monitoring with web dashboard",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -22,6 +22,23 @@ setup(
         "Documentation": "https://github.com/MsModig/mosmart#readme",
     },
     packages=find_packages(),
+    py_modules=[
+        "alert_engine",
+        "config_manager",
+        "decision_engine",
+        "device_lifecycle_logger",
+        "disk_logger",
+        "email_notifier",
+        "emergency_actions",
+        "gdc",
+        "gdc_logger",
+        "gui_advanced",
+        "gui_monitor",
+        "mosmart188_manager",
+        "mosmart194_manager",
+        "smart_monitor",
+        "web_monitor",
+    ],
     classifiers=[
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
@@ -41,13 +58,31 @@ setup(
         "flask>=3.0.0",
         "flask-cors>=4.0.0",
         "waitress>=2.1.0",
+        "cryptography>=41.0.0",
     ],
+    extras_require={
+        "gui": ["PyQt5>=5.15.0"],
+        "dev": ["pytest>=6.0", "pytest-cov>=2.10"],
+    },
     entry_points={
         "console_scripts": [
             "mosmart=smart_monitor:main",
+            "mosmart-web=web_monitor:main",
         ],
     },
     include_package_data=True,
-    keywords="smart monitoring disk health s.m.a.r.t linux",
+    package_data={
+        "": [
+            "translations.json",
+            "languages/*.lang",
+            "templates/*.html",
+            "static/*.js",
+            "static/*.css",
+            "*.png",
+            "*.md",
+        ],
+    },
+    keywords="smart monitoring disk health s.m.a.r.t linux ssd hdd",
     zip_safe=False,
+    platforms=["Linux"],
 )

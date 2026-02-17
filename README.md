@@ -8,7 +8,7 @@ A Python-based tool for reading and interpreting S.M.A.R.T. (Self-Monitoring, An
 
 ```bash
 pip install mosmart
-sudo mosmart
+sudo mosmart-web
 ```
 
 Open **http://localhost:5000** in your browser.
@@ -71,7 +71,7 @@ pip install mosmart
 
 **Run the web dashboard:**
 ```bash
-sudo mosmart
+sudo mosmart-web
 ```
 
 ### Manual Installation (Development)
@@ -82,12 +82,19 @@ sudo mosmart
    sudo apt install smartmontools python3-full python3-pip pipx
    ```
 
-2. **Install with pipx (recommended for standalone tools)**
+2. **Virtual Environment Setup (Isolated and Clean)**
+   
+   A virtual environment has been created at `/home/magnus/mosmart-venv`. This keeps MoSMART isolated from system Python.
+   
    ```bash
-   pipx install pySMART
+   # Use the pre-configured virtual environment:
+   /home/magnus/mosmart-venv/bin/python3 web_monitor.py
+   
+   # Or with sudo:
+   sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py
    ```
-
-   **OR create a virtual environment:**
+   
+   **To create a fresh virtual environment:**
    ```bash
    cd /path/to/mosmart
    python3 -m venv venv
@@ -102,18 +109,25 @@ sudo mosmart
 
 ## Usage
 
-> **Important:** If you're using a virtual environment, activate it first: `source venv/bin/activate`
+> **Important:** If you're using the pre-configured venv: `/home/magnus/mosmart-venv/bin/python3` (no activation needed)
+> 
+> If using a manually created venv, activate it first: `source venv/bin/activate`
 
 ### Web Dashboard (Recommended!)
 
-**Start the web server:**
+**Start the web server (using pre-configured venv):**
 ```bash
-sudo ./venv/bin/python3 web_monitor.py
+sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py
+```
+
+**Check disk health (CLI, no WebUI needed):**
+```bash
+sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py --check-health
 ```
 
 **With custom port:**
 ```bash
-sudo ./venv/bin/python3 web_monitor.py --port 8080
+sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py --port 8080
 ```
 
 **With custom refresh interval:**
@@ -122,6 +136,21 @@ sudo ./venv/bin/python3 web_monitor.py --refresh 30
 ```
 
 Then open your browser and go to: **http://localhost:5000**
+
+### systemd Service (Recommended for servers)
+
+If you install via PyPI, use the console script in `ExecStart` so it works regardless of install path:
+
+```ini
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/env mosmart-web
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/mosmart.log
+StandardError=append:/var/log/mosmart.log
+```
 
 **Web Dashboard features:**
 - 🎨 Modern, color-coded display of all disks
@@ -329,7 +358,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Author
 
 **Magnus Modig**
-- Email: magnus@modig.no
+- Email: kontakt@modigs-datahjelp.no
 - GitHub: [@MsModig](https://github.com/MsModig)
 
 ## Acknowledgments

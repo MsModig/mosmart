@@ -48,6 +48,43 @@ This is a Python-based tool for reading and interpreting S.M.A.R.T. (Self-Monito
 - Requires root/sudo access to read S.M.A.R.T. data
 - Uses pySMART wrapper around smartctl command
 - Monitors critical attributes: reallocated sectors, uncorrectable errors, temperature
+
+## Development Environment Setup
+
+### Pre-configured Virtual Environment
+
+A virtual environment has been set up at `/home/magnus/mosmart-venv` with all dependencies installed.
+
+**Using the pre-configured venv:**
+```bash
+# Run web interface
+sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py
+
+# Check health (no WebUI needed)
+sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py --check-health
+
+# Run tests
+/home/magnus/mosmart-venv/bin/python3 test_passive_mode.py
+```
+
+### Creating a Fresh Virtual Environment
+
+If you need a new venv:
+```bash
+python3 -m venv /path/to/new-venv
+/path/to/new-venv/bin/pip install -r requirements.txt
+
+# Or activate for development
+source /path/to/new-venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Important Dependencies:**
+- pySMART (≥1.2.0) - SMART data access
+- Flask (≥3.0.0) - Web framework
+- flask-cors (≥4.0.0) - CORS support
+- waitress (≥2.1.0) - Production WSGI server
+- cryptography (≥41.0.0) - Email encryption
 - CLI tool with argparse for flexible usage
 
 ## Logging Behavior (Important!)
@@ -255,6 +292,148 @@ sudo python3 test_emergency_unmount.py
 ```
 
 See [EMERGENCY_UNMOUNT_IMPLEMENTATION.md](EMERGENCY_UNMOUNT_IMPLEMENTATION.md) for complete documentation.
+
+## External Health Endpoint
+
+**Status**: ✅ Generic health endpoint implemented  
+**Implementation Date**: 15. februar 2026  
+**Refactored from**: MoWIPE-specific integration to generic external health check
+
+### What is the External Health Endpoint?
+
+A generic, application-agnostic API that provides disk health information.
+
+**Design Philosophy**:
+- No application-specific naming
+- Works with any external tool that needs disk health data
+- Future-proof and extensible
+- Backend function independent of WebUI/Flask
+- Works with or without running web interface
+
+### Three Ways to Access Health Data:
+
+#### 1. Via HTTP API (requires WebUI running)
+```bash
+curl -s http://localhost:5000/api/external/health | jq .
+```
+
+#### 2. Via CLI (no WebUI required)
+```bash
+sudo python3 web_monitor.py --check-health | jq .
+```
+
+#### 3. Via Python Import (programmatic access)
+```python
+from web_monitor import get_external_health
+
+health_data = get_external_health()
+print(health_data['disk_count'])
+```
+
+### API Endpoint:
+
+**GET /api/external/health** - Complete system status in one call
+
+Returns:
+- Installation status and version
+- All disks with health scores
+- Critical SMART attributes
+- GDC states
+- System information
+
+### CLI Usage:
+
+```bash
+# Check health without starting WebUI
+sudo python3 web_monitor.py --check-health
+
+# Output as pretty JSON
+sudo python3 web_monitor.py --check-health | jq .
+
+# Check specific disk
+sudo python3 web_monitor.py --check-health | jq '.disks[] | select(.name == "sda")'
+
+# Check all disk temperatures
+sudo python3 web_monitor.py --check-health | jq '.disks[] | {name, temperature}'
+
+# Check if any disk has warnings
+sudo python3 web_monitor.py --check-health | jq '.disks[] | select(.has_warnings == true)'
+```
+
+### Backend Function:
+
+`get_external_health()` - Core function independent of Flask/WebUI
+- Can be called from CLI tools
+- Can be called from background services
+- Can be called from other external applications
+- Can be imported and used in custom scripts
+- Fully decoupled from web interface
+
+### Response Format:
+
+```json
+{
+  "installed": true,
+  "version": "0.9.3",
+  "service": "MoSMART",
+  "timestamp": "2026-02-15T11:48:32.914517",
+  "uptime_seconds": 3600,
+  "system": {
+    "os": "Linux",
+    "platform": "Linux-6.8.0-94-generic-x86_64-with-glibc2.39",
+    "hostname": "magnus-dell"
+  },
+  "disks": [
+    {
+      "name": "sda",
+      "model": "CT480BX500SSD1",
+      "serial": "1935E19720A3",
+      "capacity": "480 GB",
+      "health_score": 100,
+      "health_rating": "🔵 UTMERKET",
+      "temperature": 31,
+      "power_on_hours": 49784,
+      "interface": "sat",
+      "responsive": true,
+      "has_warnings": false,
+      "gdc_state": "OK",
+      "smart_critical": {
+        "reallocated_sectors": 0,
+        "pending_sectors": 0,
+        "uncorrectable_errors": 0,
+        "power_cycle_count": 0
+      }
+    }
+  ],
+  "disk_count": 4,
+  "warnings": [],
+  "warning_count": 0,
+  "gdc_states": {},
+  "scan_error": null,
+  "api_endpoints": {
+    "external_health": "/api/external/health",
+    "full_devices": "/api/devices"
+  }
+}
+```
+
+### Usage Examples:
+
+Used by external tools such as:
+- **MoWIPE** - Disk wiping tool (primary user) - Check disk health before wiping
+- **System monitoring dashboards** - Real-time health status
+- **Third-party health checkers** - Integration points
+- **Automated disk management** - Health-based decisions
+- **Backup systems** - Skip unhealthy disks
+- **Data recovery tools** - Assess disk condition
+
+### Implementation:
+
+- `web_monitor.py::get_external_health()` - Backend function (Flask-independent)
+- `web_monitor.py::api_external_health()` - Flask API endpoint
+- `web_monitor.py --check-health` - CLI access
+
+**Note**: Integration documentation for specific tools is located in their respective project repositories.
 
 ## Project Status
 - [x] Create copilot-instructions.md file

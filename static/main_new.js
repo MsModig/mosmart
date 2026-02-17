@@ -1837,13 +1837,19 @@ App.viewLog = async function(deviceName) {
                 </div>
                 <pre id="logContent">${logText}</pre>
                 <script>
+                    const deviceData = {
+                        name: '${device.name}',
+                        model: '${device.model}',
+                        serial: '${device.serial}'
+                    };
+                    
                     function downloadLog() {
                         const content = document.getElementById('logContent').textContent;
                         const blob = new Blob([content], { type: 'text/plain' });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = 'mosmart_log_${device.name}_${device.model}_${new Date().toISOString().split('T')[0]}.txt';
+                        a.download = 'mosmart_log_' + deviceData.name + '_' + deviceData.model + '_' + new Date().toISOString().split('T')[0] + '.txt';
                         a.click();
                         URL.revokeObjectURL(url);
                     }
@@ -1854,13 +1860,13 @@ App.viewLog = async function(deviceName) {
                         }
                         
                         try {
-                            const response = await fetch('/api/logs-full/${encodeURIComponent(device.model)}/${encodeURIComponent(device.serial)}');
+                            const response = await fetch('/api/logs-full/' + encodeURIComponent(deviceData.model) + '/' + encodeURIComponent(deviceData.serial));
                             if (!response.ok) throw new Error('Failed to fetch full log');
                             
                             const data = await response.json();
                             
-                            let fullLogText = '=== FULLSTENDIG LOGGFIL FOR ${device.name} (${device.model}) ===\\n';
-                            fullLogText += 'Serial: ${device.serial}\\n';
+                            let fullLogText = '=== FULLSTENDIG LOGGFIL FOR ' + deviceData.name + ' (' + deviceData.model + ') ===\\n';
+                            fullLogText += 'Serial: ' + deviceData.serial + '\\n';
                             fullLogText += 'Totalt ' + data.log_count + ' oppføringer\\n';
                             fullLogText += '\\n' + '='.repeat(80) + '\\n\\n';
                             
@@ -1916,7 +1922,7 @@ App.viewLog = async function(deviceName) {
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement('a');
                             a.href = url;
-                            a.download = 'mosmart_log_FULL_${device.name}_${device.model}_${new Date().toISOString().split('T')[0]}.txt';
+                            a.download = 'mosmart_log_FULL_' + deviceData.name + '_' + deviceData.model + '_' + new Date().toISOString().split('T')[0] + '.txt';
                             a.click();
                             URL.revokeObjectURL(url);
                         } catch (error) {

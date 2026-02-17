@@ -4,11 +4,20 @@
 # Licensed under GPLv3. See LICENSE for details.
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
-# GDC log directory: ~/.mosmart/gdc/
-GDC_DIR = Path.home() / '.mosmart' / 'gdc'
+# GDC log directory
+# Use /var/lib/mosmart/gdc when running as root (systemd service)
+# Use ~/.mosmart/gdc when running as regular user
+if os.getuid() == 0:
+    # Running as root (systemd service or sudo)
+    GDC_DIR = Path('/var/lib/mosmart/gdc')
+else:
+    # Running as regular user
+    GDC_DIR = Path.home() / '.mosmart' / 'gdc'
+
 GDC_DIR.mkdir(parents=True, exist_ok=True)
 
 # Global GDC history file

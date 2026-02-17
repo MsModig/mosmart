@@ -2,3 +2,7 @@ pySMART>=1.2.0
 flask>=3.0.0
 flask-cors>=4.0.0
 waitress>=2.1.0
+PyQt5>=5.15.0
+PyQtChart>=5.15.0
+requests>=2.28.0
+cryptography>=41.0.0
