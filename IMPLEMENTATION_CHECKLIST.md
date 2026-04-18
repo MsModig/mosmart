@@ -148,7 +148,7 @@ python3 -m py_compile gui_monitor.py
 python3 test_gui_settings_tabs.py
 
 # Launch GUI
-sudo /home/magnus/mosmart/.venv-gui/bin/python3 gui_monitor.py
+sudo /path/to/mosmart/.venv-gui/bin/python3 gui_monitor.py
 ```
 
 ## Configuration Examples

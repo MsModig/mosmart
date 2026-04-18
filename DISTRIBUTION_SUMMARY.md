@@ -49,7 +49,7 @@ New Files:
 
 **Commands**:
 ```bash
-cd /home/magnus/mosmart
+cd /path/to/mosmart
 
 # Commit changes
 git add -A
@@ -80,7 +80,7 @@ git push origin v0.9.4
 **Commands**:
 ```bash
 # Build
-cd /home/magnus/mosmart
+cd /path/to/mosmart
 rm -rf build/ dist/ *.egg-info/
 python3 -m build
 
@@ -363,7 +363,7 @@ sudo ./install.sh
 
 ```bash
 # 1. Verify everything is ready
-cd /home/magnus/mosmart
+cd /path/to/mosmart
 git status
 
 # 2. Commit changes

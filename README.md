@@ -7,11 +7,28 @@ A Python-based tool for reading and interpreting S.M.A.R.T. (Self-Monitoring, An
 ## 🚀 Quick Installation
 
 ```bash
-pip install mosmart
+sudo apt update
+sudo apt install smartmontools python3-full pipx
+pipx ensurepath
+pipx install mosmart
 sudo mosmart-web
 ```
 
 Open **http://localhost:5000** in your browser.
+
+## Distribution-specific guides
+
+- Linux Mint: [INSTALL_LINUX_MINT.md](INSTALL_LINUX_MINT.md)
+- Debian: [INSTALL_DEBIAN.md](INSTALL_DEBIAN.md)
+- Ubuntu: [INSTALL_UBUNTU.md](INSTALL_UBUNTU.md)
+
+## Which install method should I choose?
+
+| Method | Best for | Pros | Notes |
+|--------|----------|------|-------|
+| `pipx install mosmart` | Most users | Simple, isolated, PEP 668-safe | Recommended on Linux Mint/Debian/Ubuntu |
+| Source + `venv` | Development and customization | Full control of source and dependencies | Run from repository with `venv/bin/python3` |
+| `install.sh` | System-wide service deployments | Integrates with systemd | Better for dedicated hosts/servers |
 
 ## Features
 
@@ -66,13 +83,19 @@ sudo pacman -S smartmontools python-pip
 ### Install via PyPI (Recommended)
 
 ```bash
-pip install mosmart
+sudo apt update
+sudo apt install smartmontools python3-full pipx
+pipx ensurepath
+pipx install mosmart
 ```
 
 **Run the web dashboard:**
 ```bash
 sudo mosmart-web
 ```
+
+> On Linux Mint, Ubuntu, and Debian, `pip install` to system Python may fail with `externally-managed-environment` (PEP 668).
+> This is expected behavior. Use `pipx install mosmart`, or create and use a virtual environment.
 
 ### Manual Installation (Development)
 
@@ -83,15 +106,15 @@ sudo mosmart-web
    ```
 
 2. **Virtual Environment Setup (Isolated and Clean)**
-   
-   A virtual environment has been created at `/home/magnus/mosmart-venv`. This keeps MoSMART isolated from system Python.
+
+  A virtual environment can be created at `$HOME/mosmart-venv` (or any path you prefer). This keeps MoSMART isolated from system Python.
    
    ```bash
-   # Use the pre-configured virtual environment:
-   /home/magnus/mosmart-venv/bin/python3 web_monitor.py
+  # Use a pre-configured virtual environment:
+  $HOME/mosmart-venv/bin/python3 web_monitor.py
    
-   # Or with sudo:
-   sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py
+  # Or with sudo:
+  sudo $HOME/mosmart-venv/bin/python3 web_monitor.py
    ```
    
    **To create a fresh virtual environment:**
@@ -109,7 +132,7 @@ sudo mosmart-web
 
 ## Usage
 
-> **Important:** If you're using the pre-configured venv: `/home/magnus/mosmart-venv/bin/python3` (no activation needed)
+> **Important:** If you're using a pre-configured venv: `$HOME/mosmart-venv/bin/python3` (no activation needed)
 > 
 > If using a manually created venv, activate it first: `source venv/bin/activate`
 
@@ -117,17 +140,17 @@ sudo mosmart-web
 
 **Start the web server (using pre-configured venv):**
 ```bash
-sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py
+sudo $HOME/mosmart-venv/bin/python3 web_monitor.py
 ```
 
 **Check disk health (CLI, no WebUI needed):**
 ```bash
-sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py --check-health
+sudo $HOME/mosmart-venv/bin/python3 web_monitor.py --check-health
 ```
 
 **With custom port:**
 ```bash
-sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py --port 8080
+sudo $HOME/mosmart-venv/bin/python3 web_monitor.py --port 8080
 ```
 
 **With custom refresh interval:**

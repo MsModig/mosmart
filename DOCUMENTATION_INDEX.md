@@ -235,7 +235,7 @@ Implement remaining tabs (using GUI_SETTINGS_TEMPLATE.md):
 
 ### Core Files
 ```
-/home/magnus/mosmart/
+/path/to/mosmart/
 ├── gui_monitor.py              (Main GUI file)
 ├── config_manager.py           (Configuration management)
 ├── test_gui_settings_tabs.py   (Test suite)
@@ -244,7 +244,7 @@ Implement remaining tabs (using GUI_SETTINGS_TEMPLATE.md):
 
 ### Documentation
 ```
-/home/magnus/mosmart/
+/path/to/mosmart/
 ├── GUI_SETTINGS_TABS.md           (Technical details)
 ├── GUI_SETTINGS_VISUAL.md         (Visual guide)
 ├── GUI_SETTINGS_TEMPLATE.md       (Implementation template)

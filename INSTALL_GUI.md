@@ -102,7 +102,7 @@ Check that venv is activated:
 
 ```bash
 which python3
-# Should show: /home/magnus/mosmart/.venv-gui/bin/python3
+# Should show: /path/to/mosmart/.venv-gui/bin/python3
 ```
 
 ### PyQt5 installation fails

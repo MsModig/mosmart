@@ -62,7 +62,7 @@ chmod 600 ~/.pypirc
 
 ### Step 1: Clean Previous Builds
 ```bash
-cd /home/magnus/mosmart
+cd /path/to/mosmart
 rm -rf build/ dist/ *.egg-info/
 ```
 

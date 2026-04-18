@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Documentation examples now use generic virtual environment paths (e.g. `$HOME/mosmart-venv` and `/path/to/mosmart`) instead of hardcoded home-directory paths.
+- Installation documentation now recommends `pipx install mosmart` for Linux Mint/Debian/Ubuntu and explains `externally-managed-environment` (PEP 668) with a venv fallback.
+- Added dedicated installation guides for Linux Mint, Debian, and Ubuntu, and linked them from the main README files.
+- Added an install-method decision matrix in both README files (pipx vs venv vs install.sh).
+
 ## [0.9.4] - 2026-02-17
 
 ### Added

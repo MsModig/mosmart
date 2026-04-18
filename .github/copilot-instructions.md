@@ -53,18 +53,18 @@ This is a Python-based tool for reading and interpreting S.M.A.R.T. (Self-Monito
 
 ### Pre-configured Virtual Environment
 
-A virtual environment has been set up at `/home/magnus/mosmart-venv` with all dependencies installed.
+A virtual environment can be set up at `$HOME/mosmart-venv` with all dependencies installed.
 
 **Using the pre-configured venv:**
 ```bash
 # Run web interface
-sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py
+sudo $HOME/mosmart-venv/bin/python3 web_monitor.py
 
 # Check health (no WebUI needed)
-sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py --check-health
+sudo $HOME/mosmart-venv/bin/python3 web_monitor.py --check-health
 
 # Run tests
-/home/magnus/mosmart-venv/bin/python3 test_passive_mode.py
+$HOME/mosmart-venv/bin/python3 test_passive_mode.py
 ```
 
 ### Creating a Fresh Virtual Environment

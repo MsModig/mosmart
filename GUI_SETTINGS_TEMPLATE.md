@@ -159,7 +159,7 @@ After implementing:
 
 2. Run GUI (with sudo for config access):
    ```bash
-   sudo /home/magnus/mosmart/.venv-gui/bin/python3 gui_monitor.py
+   sudo /path/to/mosmart/.venv-gui/bin/python3 gui_monitor.py
    ```
 
 3. Verify:

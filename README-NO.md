@@ -7,11 +7,28 @@ A Python-based tool for reading and interpreting S.M.A.R.T. (Self-Monitoring, An
 ## 🚀 Quick Installation
 
 ```bash
-pip install mosmart
+sudo apt update
+sudo apt install smartmontools python3-full pipx
+pipx ensurepath
+pipx install mosmart
 sudo mosmart
 ```
 
 Open **http://localhost:5000** in your browser.
+
+## Distro-spesifikke guider
+
+- Linux Mint: [INSTALL_LINUX_MINT.md](INSTALL_LINUX_MINT.md)
+- Debian: [INSTALL_DEBIAN.md](INSTALL_DEBIAN.md)
+- Ubuntu: [INSTALL_UBUNTU.md](INSTALL_UBUNTU.md)
+
+## Hvilken installasjonsmetode bør jeg velge?
+
+| Metode | Passer best for | Fordeler | Merknad |
+|--------|------------------|----------|---------|
+| `pipx install mosmart` | De fleste brukere | Enkelt, isolert, PEP 668-sikkert | Anbefalt på Linux Mint/Debian/Ubuntu |
+| Kildekode + `venv` | Utvikling og tilpasning | Full kontroll over kildekode og avhengigheter | Kjør fra repo med `venv/bin/python3` |
+| `install.sh` | Systemtjeneste på maskiner/servere | Integrasjon med systemd | Best for dedikerte verter/servere |
 
 ## Funksjoner
 
@@ -66,7 +83,10 @@ sudo pacman -S smartmontools python-pip
 ### Installer via PyPI (anbefalt)
 
 ```bash
-pip install mosmart
+sudo apt update
+sudo apt install smartmontools python3-full pipx
+pipx ensurepath
+pipx install mosmart
 ```
 
 **Kjør web-dashboardet:**
@@ -82,12 +102,12 @@ sudo mosmart
 
 2. **Installer med pipx (anbefalt for enkeltstående verktøy)**
    ```bash
-   pipx install pySMART
+  pipx install mosmart
    ```
 
    **ELLER opprett et virtuelt miljø:**
    ```bash
-   cd /home/magnus/mosmart
+  cd /path/to/mosmart
    python3 -m venv venv
    source venv/bin/activate
    pip install -r requirements.txt
@@ -101,7 +121,7 @@ sudo mosmart
 ## Quick Start (PyPI)
 
 ```bash
-pip install mosmart
+pipx install mosmart
 sudo mosmart
 ```
 
@@ -282,7 +302,16 @@ pip install -r requirements.txt
 ```
 
 ### "externally-managed-environment" feil
-Dette er normalt på nyere Debian/Ubuntu-systemer. Bruk virtuelt miljø:
+Dette er normalt på nyere Linux Mint/Debian/Ubuntu-systemer (PEP 668).
+
+Anbefalt løsning for app-installasjon:
+```bash
+sudo apt install pipx python3-full
+pipx ensurepath
+pipx install mosmart
+```
+
+Alternativt kan du bruke virtuelt miljø:
 ```bash
 python3 -m venv venv
 source venv/bin/activate

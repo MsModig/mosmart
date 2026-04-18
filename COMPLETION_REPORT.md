@@ -220,7 +220,7 @@ Modified the SettingsDialog class with:
 ### Usage
 ```bash
 # Run with sudo for config access
-sudo /home/magnus/mosmart/.venv-gui/bin/python3 gui_monitor.py
+sudo /path/to/mosmart/.venv-gui/bin/python3 gui_monitor.py
 
 # Click ⚙️ Settings button
 # Configure Disks, SMART, and Temperature tabs
@@ -257,7 +257,7 @@ All follow the established template in GUI_SETTINGS_TEMPLATE.md
 ### Troubleshooting
 
 **Disks don't appear in Disks tab?**
-- Ensure REST API is running: `sudo /home/magnus/mosmart-venv/bin/python3 web_monitor.py`
+- Ensure REST API is running: `sudo $HOME/mosmart-venv/bin/python3 web_monitor.py`
 - Check API at: `curl http://localhost:5000/api/devices`
 
 **Settings not saving?**

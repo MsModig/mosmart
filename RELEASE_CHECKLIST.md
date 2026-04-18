@@ -60,7 +60,7 @@
 
 ### Step 1: Git Commit and Tag
 ```bash
-cd /home/magnus/mosmart
+cd /path/to/mosmart
 
 # Stage all changes
 git add -A
@@ -110,7 +110,7 @@ On GitHub.com:
 
 ### Step 4: Build PyPI Distribution
 ```bash
-cd /home/magnus/mosmart
+cd /path/to/mosmart
 
 # Clean previous builds
 rm -rf build/ dist/ *.egg-info/

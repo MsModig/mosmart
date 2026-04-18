@@ -117,8 +117,14 @@ Required: All files except excluded items
 
 ### Method 2: From PyPI (User Installation)
 ```bash
-pip install mosmart
+sudo apt update
+sudo apt install smartmontools python3-full pipx
+pipx ensurepath
+pipx install mosmart
 ```
+
+Note: On Linux Mint/Debian/Ubuntu, direct `pip install` to system Python can fail with
+`externally-managed-environment` (PEP 668). This is expected; use `pipx` or a virtual environment.
 
 Includes: All essential modules and configuration files only
 Excludes: Development files, test files, documentation

@@ -185,13 +185,13 @@ To verify the implementation:
 
 ```bash
 # Syntax check
-python3 -m py_compile /home/magnus/mosmart/gui_monitor.py
+python3 -m py_compile /path/to/mosmart/gui_monitor.py
 
 # Run tests
-python3 /home/magnus/mosmart/test_gui_settings_tabs.py
+python3 /path/to/mosmart/test_gui_settings_tabs.py
 
 # Launch GUI (requires sudo for config access)
-sudo /home/magnus/mosmart/.venv-gui/bin/python3 /home/magnus/mosmart/gui_monitor.py
+sudo /path/to/mosmart/.venv-gui/bin/python3 /path/to/mosmart/gui_monitor.py
 ```
 
 ## Summary
