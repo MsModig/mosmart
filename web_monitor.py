@@ -23,6 +23,7 @@ Output is logged only. No actions are taken based on decisions.
 
 import sys
 import argparse
+import ipaddress
 import json
 import os
 import platform
@@ -84,6 +85,25 @@ config = {
     'enable_logging': True,  # enable automatic health logging
     'max_log_size_kb': 1024  # maximum log size per disk in KB
 }
+
+
+def normalize_webui_bind_host(host_value: Optional[str]) -> str:
+    """Normalize configured bind host to a safe explicit address."""
+    if host_value is None:
+        return '127.0.0.1'
+
+    host = str(host_value).strip()
+    if not host or host.lower() == 'localhost':
+        return '127.0.0.1'
+
+    if host in {'127.0.0.1', '0.0.0.0', '::1', '::'}:
+        return host
+
+    try:
+        ipaddress.ip_address(host)
+        return host
+    except ValueError:
+        return '127.0.0.1'
 
 # Service start time (for uptime tracking in API)
 service_start_time = time.time()
@@ -3193,6 +3213,14 @@ def api_save_settings():
     
     # Load current config to merge
     current_config = load_config()
+
+    if 'general' in new_config:
+        general = new_config['general']
+        legacy_allow_lan = general.pop('allow_lan_access', None)
+        if 'webui_bind_host' in general:
+            general['webui_bind_host'] = normalize_webui_bind_host(general['webui_bind_host'])
+        elif legacy_allow_lan is not None:
+            general['webui_bind_host'] = '0.0.0.0' if legacy_allow_lan else '127.0.0.1'
     
     # Update current config with new values (this preserves encrypted email)
     for section, values in new_config.items():
@@ -3222,6 +3250,8 @@ def api_save_settings():
             config['language'] = current_config['general']['language']
         if 'temperature_unit' in current_config['general']:
             config['temperature_unit'] = current_config['general']['temperature_unit']
+        if 'webui_bind_host' in current_config['general']:
+            config['webui_bind_host'] = current_config['general']['webui_bind_host']
     
     if success:
         return jsonify({'status': 'success', 'message': 'All settings saved'})
@@ -3591,8 +3621,8 @@ def main():
     parser.add_argument(
         '--host',
         type=str,
-        default='127.0.0.1',
-        help='Host to bind to (default: 127.0.0.1)'
+        default=None,
+        help='Host to bind to (default: value from settings, usually 127.0.0.1)'
     )
     
     parser.add_argument(
@@ -3631,23 +3661,31 @@ def main():
     
     # Load saved settings from config_manager
     saved_config = load_config()
+    general_config = saved_config.get('general', {})
     
     # Check if WebUI is enabled at startup
-    webui_enabled = saved_config.get('general', {}).get('enable_webui', True)
+    webui_enabled = general_config.get('enable_webui', True)
+    configured_bind_host = general_config.get('webui_bind_host')
+    if configured_bind_host is None:
+        configured_bind_host = '0.0.0.0' if general_config.get('allow_lan_access', False) else '127.0.0.1'
+    bind_host = normalize_webui_bind_host(args.host or configured_bind_host)
     
     # Apply command-line args (override saved settings)
     config['port'] = args.port
-    config['refresh_interval'] = saved_config.get('general', {}).get('polling_interval', args.refresh)
-    config['language'] = saved_config.get('general', {}).get('language', args.language)
-    config['temperature_unit'] = saved_config.get('general', {}).get('temperature_unit', 'C')
+    config['refresh_interval'] = general_config.get('polling_interval', args.refresh)
+    config['language'] = general_config.get('language', args.language)
+    config['temperature_unit'] = general_config.get('temperature_unit', 'C')
     config['enable_logging'] = not args.no_logging
+    config['webui_bind_host'] = bind_host
     
     # Load monitored devices from settings
     config['monitored_devices'] = saved_config.get('disk_selection', {}).get('monitored_devices', {})
     
     print(f"Starting S.M.A.R.T. Web Monitor...")
     if webui_enabled:
-        print(f"Dashboard: http://{args.host}:{args.port}")
+        print(f"Dashboard: http://{bind_host}:{args.port}")
+        if bind_host not in {'127.0.0.1', '::1'}:
+            print("⚠️  WebUI is exposed beyond localhost. Use only on trusted internal networks.")
     else:
         print(f"⚠️  WebUI is DISABLED - Dashboard not available")
     print(f"Auto-refresh: {config['refresh_interval']} seconds")
@@ -3681,17 +3719,17 @@ def main():
     if args.dev:
         # Development server
         print("⚠️  Running Flask development server (--dev mode)")
-        app.run(host=args.host, port=args.port, debug=True)
+        app.run(host=bind_host, port=args.port, debug=True)
     else:
         # Production server with waitress
         try:
             from waitress import serve
             print("✓ Running production server (waitress)")
-            serve(app, host=args.host, port=args.port)
+            serve(app, host=bind_host, port=args.port)
         except ImportError:
             print("⚠️  waitress not installed, falling back to Flask dev server")
             print("   Install with: pip install waitress")
-            app.run(host=args.host, port=args.port, debug=False)
+            app.run(host=bind_host, port=args.port, debug=False)
 
 if __name__ == '__main__':
     main()

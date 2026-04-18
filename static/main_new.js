@@ -2001,6 +2001,7 @@ App.populateSettingsForm = function() {
     });
     
     document.getElementById('setting-polling-interval').value = s.general?.polling_interval || 60;
+    document.getElementById('setting-webui-bind-host').value = s.general?.webui_bind_host || (s.general?.allow_lan_access ? '0.0.0.0' : '127.0.0.1');
     
     // Disks
     const diskList = document.getElementById('disk-selection-list');
@@ -2079,6 +2080,7 @@ App.saveSettings = async function() {
         general: {
             language: document.getElementById('setting-language').value,
             polling_interval: parseInt(document.getElementById('setting-polling-interval').value),
+            webui_bind_host: document.getElementById('setting-webui-bind-host').value.trim() || '127.0.0.1',
             temperature_unit: 'C'
         },
         disk_selection: {
@@ -2163,7 +2165,10 @@ App.saveSettings = async function() {
         
         if (!response.ok) throw new Error('Failed to save settings');
         
-        alert('Settings saved successfully!');
+        const bindHostChanged = (this.state.settings?.general?.webui_bind_host || (this.state.settings?.general?.allow_lan_access ? '0.0.0.0' : '127.0.0.1')) !== newSettings.general.webui_bind_host;
+        alert(bindHostChanged
+            ? 'Settings saved successfully! Restart WebUI for bind-address changes to take effect.'
+            : 'Settings saved successfully!');
         
         // Update local state
         this.state.settings = newSettings;

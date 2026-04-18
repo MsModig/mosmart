@@ -32,7 +32,8 @@ required_spinboxes = [
 ]
 
 # Read the file to check for spinbox definitions
-with open('/home/magnus/mosmart/gui_monitor.py', 'r') as f:
+gui_monitor_path = Path(__file__).resolve().parent / 'gui_monitor.py'
+with open(gui_monitor_path, 'r') as f:
     content = f.read()
     
 for spinbox_name in required_spinboxes:

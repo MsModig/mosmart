@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Installation documentation now recommends `pipx install mosmart` for Linux Mint/Debian/Ubuntu and explains `externally-managed-environment` (PEP 668) with a venv fallback.
 - Added dedicated installation guides for Linux Mint, Debian, and Ubuntu, and linked them from the main README files.
 - Added an install-method decision matrix in both README files (pipx vs venv vs install.sh).
+- Added backend-controlled WebUI bind-address setting, with localhost kept as the safe default.
 
 ## [0.9.4] - 2026-02-17
 

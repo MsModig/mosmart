@@ -395,7 +395,7 @@ class APIClient:
         self.base_url = f"http://{host}:{port}"
         self.timeout = 10
     
-    def get_devices(self) -> Optional[List[Dict]]:
+    def get_devices(self, silent: bool = False) -> Optional[List[Dict]]:
         """Get all devices"""
         try:
             response = requests.get(f"{self.base_url}/api/devices", timeout=self.timeout)
@@ -403,17 +403,19 @@ class APIClient:
                 data = response.json()
                 return data.get('devices', [])
         except Exception as e:
-            print(f"❌ Error fetching devices: {e}")
+            if not silent:
+                print(f"❌ Error fetching devices: {e}")
         return None
     
-    def get_device_progressive(self) -> Optional[Dict]:
+    def get_device_progressive(self, silent: bool = False) -> Optional[Dict]:
         """Get progressive scan results"""
         try:
             response = requests.get(f"{self.base_url}/api/devices/progressive", timeout=self.timeout)
             if response.status_code == 200:
                 return response.json()
         except Exception as e:
-            print(f"❌ Error fetching progressive data: {e}")
+            if not silent:
+                print(f"❌ Error fetching progressive data: {e}")
         return None
     
     def force_scan(self) -> bool:
@@ -454,14 +456,15 @@ class APIClient:
             print(f"❌ Error fetching alerts: {e}")
         return None
     
-    def get_settings(self) -> Optional[Dict]:
+    def get_settings(self, silent: bool = False) -> Optional[Dict]:
         """Get all settings"""
         try:
             response = requests.get(f"{self.base_url}/api/settings", timeout=self.timeout)
             if response.status_code == 200:
                 return response.json()
         except Exception as e:
-            print(f"❌ Error fetching settings: {e}")
+            if not silent:
+                print(f"❌ Error fetching settings: {e}")
         return None
 
     def get_languages(self) -> Optional[Dict]:
@@ -509,23 +512,26 @@ class RefreshWorker(QThread):
         super().__init__()
         self.api = api
         self.interval = interval
-        self.running = True
+        self.stop_event = threading.Event()
     
     def run(self):
         """Refresh data periodically"""
-        while self.running:
-            try:
-                data = self.api.get_device_progressive()
-                if data:
-                    self.data_updated.emit(data)
-            except Exception as e:
-                self.error_occurred.emit(str(e))
-            
-            time.sleep(self.interval)
+        while not self.stop_event.is_set():
+            data = self.api.get_device_progressive(silent=True)
+            if self.stop_event.is_set():
+                break
+
+            if data is not None:
+                self.data_updated.emit(data)
+            else:
+                self.error_occurred.emit("Backend unavailable")
+
+            if self.stop_event.wait(self.interval):
+                break
     
     def stop(self):
         """Stop the worker"""
-        self.running = False
+        self.stop_event.set()
 
 
 # ===== DEVICE CARD WIDGET =====
@@ -1046,6 +1052,14 @@ class SettingsDialog(QDialog):
         self.polling_spin.setValue(self.config.get('general', {}).get('polling_interval', 60))
         self.polling_spin.setSuffix(" " + self.t('seconds', 'seconds'))
         general_layout.addRow(self.t('refresh_interval', 'Refresh interval:'), self.polling_spin)
+
+        self.webui_bind_host_edit = QLineEdit()
+        self.webui_bind_host_edit.setText(self.config.get('general', {}).get('webui_bind_host', '127.0.0.1'))
+        general_layout.addRow(self.t('webui_bind_host', 'WebUI bind address:'), self.webui_bind_host_edit)
+
+        lan_notice = QLabel(self.t('webui_bind_host_help', 'Use 127.0.0.1 for local only, a specific LAN IP for one interface, or 0.0.0.0 for all interfaces. Requires WebUI restart.'))
+        lan_notice.setWordWrap(True)
+        general_layout.addRow(lan_notice)
         
         tabs[0] = general_tab
         self.stacked_widget.addWidget(general_tab)
@@ -1639,6 +1653,7 @@ class SettingsDialog(QDialog):
             self.config['general'] = {}
         self.config['general']['language'] = self.language_combo.currentText()
         self.config['general']['polling_interval'] = self.polling_spin.value()
+        self.config['general']['webui_bind_host'] = self.webui_bind_host_edit.text().strip() or '127.0.0.1'
         
         if 'disk_selection' not in self.config:
             self.config['disk_selection'] = {}
@@ -1861,6 +1876,9 @@ class MoSMARTGUI(QMainWindow):
         self.language = 'en'
         self.columns = 3
         self.emergency_mode = 'PASSIVE'  # Track emergency unmount mode
+        self.is_offline = False
+        self.reconnect_interval = 10  # seconds
+        self.reconnect_timer = None
         
         self.setWindowTitle("MoSMART Monitor - Desktop GUI")
         self.setWindowIcon(QIcon())
@@ -1981,6 +1999,20 @@ class MoSMARTGUI(QMainWindow):
         header_layout.addStretch()
 
         main_layout.addLayout(header_layout)
+
+        # Offline banner (hidden by default)
+        self.offline_banner = QLabel("🔴 Backend utilgjengelig – prøver å koble til…")
+        self.offline_banner.setStyleSheet(f"""
+            QLabel {{
+                background-color: {Theme.STATUS_CRITICAL};
+                color: white;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-weight: bold;
+            }}
+        """)
+        self.offline_banner.setVisible(False)
+        main_layout.addWidget(self.offline_banner)
 
         # Buttons row under header
         buttons_layout = QHBoxLayout()
@@ -2133,14 +2165,91 @@ class MoSMARTGUI(QMainWindow):
     
     def init_backend(self):
         """Initialize background refresh worker"""
+        self.start_refresh_worker()
+
+    def start_refresh_worker(self):
+        """Start background refresh worker if not running"""
+        if self.refresh_worker and self.refresh_worker.isRunning():
+            return
+
         self.refresh_worker = RefreshWorker(self.api, self.refresh_interval)
         self.refresh_worker.data_updated.connect(self.on_data_updated)
         self.refresh_worker.error_occurred.connect(self.on_error)
         self.refresh_worker.start()
+
+    def stop_refresh_worker(self):
+        """Stop background refresh worker"""
+        if self.refresh_worker:
+            self.refresh_worker.stop()
+            wait_timeout_ms = max(2000, (self.api.timeout + 2) * 1000)
+            if self.refresh_worker.wait(wait_timeout_ms):
+                self.refresh_worker = None
+            else:
+                print("⚠️ Refresh worker did not stop cleanly")
+
+    def set_backend_controls_enabled(self, enabled: bool):
+        """Enable/disable backend-dependent controls"""
+        self.btn_refresh.setEnabled(enabled)
+        self.btn_force_scan.setEnabled(enabled)
+        self.btn_settings.setEnabled(enabled)
+
+    def enter_offline_mode(self):
+        """Enter offline mode when backend is unavailable"""
+        if self.is_offline:
+            return
+
+        self.is_offline = True
+        self.offline_banner.setVisible(True)
+        self.set_backend_controls_enabled(False)
+
+        if hasattr(self, 'refresh_timer') and self.refresh_timer.isActive():
+            self.refresh_timer.stop()
+
+        self.stop_refresh_worker()
+
+        if self.reconnect_timer is None:
+            self.reconnect_timer = QTimer(self)
+            self.reconnect_timer.timeout.connect(self.try_reconnect)
+
+        if not self.reconnect_timer.isActive():
+            self.reconnect_timer.start(self.reconnect_interval * 1000)
+
+        self.statusBar().showMessage("Backend utilgjengelig – prøver å koble til…")
+
+    def exit_offline_mode(self):
+        """Resume normal mode when backend reconnects"""
+        if not self.is_offline:
+            return
+
+        self.is_offline = False
+        self.offline_banner.setVisible(False)
+        self.set_backend_controls_enabled(True)
+
+        if self.reconnect_timer and self.reconnect_timer.isActive():
+            self.reconnect_timer.stop()
+
+        self.start_refresh_worker()
+        self.start_auto_refresh()
+        self.update_emergency_status()
+        self.statusBar().showMessage(self.t('ready', 'Ready'))
+
+    def try_reconnect(self):
+        """Try reconnecting to backend periodically"""
+        devices = self.api.get_devices(silent=True)
+        if devices is not None:
+            self.exit_offline_mode()
+            self.refresh_data()
     
     def refresh_data(self):
         """Fetch and display devices"""
+        if self.is_offline:
+            return
+
         devices = self.api.get_devices()
+        if devices is None:
+            self.enter_offline_mode()
+            return
+
         if devices:
             self.devices = devices
             self.render_devices()
@@ -2184,6 +2293,9 @@ class MoSMARTGUI(QMainWindow):
     
     def force_scan(self):
         """Trigger force scan"""
+        if self.is_offline:
+            return
+
         self.btn_force_scan.setEnabled(False)
         result = self.api.force_scan()
         if result:
@@ -2194,6 +2306,9 @@ class MoSMARTGUI(QMainWindow):
     
     def open_settings(self):
         """Open settings dialog"""
+        if self.is_offline:
+            return
+
         dialog = SettingsDialog(self, self.t)
         if dialog.exec_() == QDialog.Accepted:
             # Reload translations and emergency status after settings changes
@@ -2236,8 +2351,13 @@ class MoSMARTGUI(QMainWindow):
     
     def start_auto_refresh(self):
         """Start auto-refresh timer"""
-        self.refresh_timer = QTimer()
-        self.refresh_timer.timeout.connect(self.refresh_data)
+        if hasattr(self, 'refresh_timer') and self.refresh_timer.isActive():
+            return
+
+        if not hasattr(self, 'refresh_timer'):
+            self.refresh_timer = QTimer(self)
+            self.refresh_timer.timeout.connect(self.refresh_data)
+
         self.refresh_timer.start(self.refresh_interval * 1000)
     
     def on_data_updated(self, data: dict):
@@ -2249,13 +2369,19 @@ class MoSMARTGUI(QMainWindow):
     
     def on_error(self, error: str):
         """Handle error from worker"""
+        if self.is_offline:
+            return
+
         print(f"⚠️ Backend error: {error}")
-        self.statusBar().showMessage(f"Error: {error}")
+        self.enter_offline_mode()
     
     def closeEvent(self, event):
         """Clean up on close"""
-        if self.refresh_worker:
-            self.refresh_worker.stop()
+        self.stop_refresh_worker()
+
+        if self.reconnect_timer and self.reconnect_timer.isActive():
+            self.reconnect_timer.stop()
+
         settings = QSettings("MoSMART", "MoSMARTGUI")
         settings.setValue("window_geometry", self.saveGeometry())
         event.accept()

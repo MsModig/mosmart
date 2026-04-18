@@ -143,6 +143,13 @@
                         <label data-i18n="refresh_interval">Oppdateringsintervall (sekunder):</label>
                         <input type="number" id="setting-polling-interval" min="10" max="300" value="60">
                     </div>
+                    <div class="form-group">
+                        <label data-i18n="webui_bind_host">WebUI bind-adresse:</label>
+                        <input type="text" id="setting-webui-bind-host" value="127.0.0.1" placeholder="127.0.0.1">
+                        <small style="display: block; margin-top: 5px; color: #666; font-style: italic;">
+                            <span data-i18n="webui_bind_host_help">Bruk 127.0.0.1 for lokal tilgang, en spesifikk LAN-IP for ett interface, eller 0.0.0.0 for alle interface. Krever restart av WebUI.</span>
+                        </small>
+                    </div>
                 </div>
 
                 <!-- Disks Tab -->
