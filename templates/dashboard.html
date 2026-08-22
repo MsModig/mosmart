@@ -70,6 +70,7 @@
                 </div>
                 <div class="banner-note">Dette er normalt ved strømbrudd eller løs strømtilkobling.</div>
             </div>
+            <button class="banner-dismiss-btn" onclick="App.dismissSystemEventBanner()" title="Kvitter ut">✕</button>
         </div>
 
         <!-- Main Content -->
@@ -148,6 +149,13 @@
                         <input type="text" id="setting-webui-bind-host" value="127.0.0.1" placeholder="127.0.0.1">
                         <small style="display: block; margin-top: 5px; color: #666; font-style: italic;">
                             <span data-i18n="webui_bind_host_help">Bruk 127.0.0.1 for lokal tilgang, en spesifikk LAN-IP for ett interface, eller 0.0.0.0 for alle interface. Krever restart av WebUI.</span>
+                        </small>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="webui_port">WebUI port:</label>
+                        <input type="number" id="setting-webui-port" min="1" max="65535" value="5000" placeholder="5000">
+                        <small style="display: block; margin-top: 5px; color: #666; font-style: italic;">
+                            <span data-i18n="webui_port_help">Porten WebUI lytter på. Standard er 5000. Krever restart av WebUI.</span>
                         </small>
                     </div>
                 </div>

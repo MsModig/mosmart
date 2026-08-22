@@ -10,6 +10,12 @@ All notable changes to this project will be documented in this file.
 - Added dedicated installation guides for Linux Mint, Debian, and Ubuntu, and linked them from the main README files.
 - Added an install-method decision matrix in both README files (pipx vs venv vs install.sh).
 - Added backend-controlled WebUI bind-address setting, with localhost kept as the safe default.
+- Added configurable WebUI port setting (GUI and WebUI), defaulting to 5000.
+- System event banner (uncontrolled shutdown) can now be dismissed by the user instead of persisting until restart.
+- Disks with a rapid health-score decline (configurable threshold/window) are now surfaced at the top of the dashboard with a "Raskt fall" banner, without affecting the health score itself.
+
+### Fixed
+- GDC (Ghost Drive Condition) state no longer lingers on a device name after it disconnects; a reused device name now gets a fresh identity/swap check instead of inheriting a stale CONFIRMED/TERMINAL state.
 
 ## [0.9.4] - 2026-02-17
 

@@ -105,6 +105,16 @@ def normalize_webui_bind_host(host_value: Optional[str]) -> str:
     except ValueError:
         return '127.0.0.1'
 
+def normalize_webui_port(port_value) -> int:
+    """Normalize configured WebUI port to a valid integer."""
+    try:
+        port = int(port_value)
+        if 1 <= port <= 65535:
+            return port
+    except (TypeError, ValueError):
+        pass
+    return 5000
+
 # Service start time (for uptime tracking in API)
 service_start_time = time.time()
 
@@ -177,6 +187,36 @@ timeout_history = {}  # {device_name: [timestamps of timeouts]}
 
 # GDC managers per device
 gdc_managers = {}  # {device_name: GDCManager instance}
+
+# Rapid health decline detection (priority sorting layer, does not affect health score itself)
+RAPID_DECLINE_THRESHOLD = 15   # points
+RAPID_DECLINE_WINDOW_MINUTES = 30
+health_score_history = {}  # {device_name: [{'ts': float, 'score': int}, ...]}
+
+def _track_rapid_decline(device_name, score):
+    """
+    Record a health score sample and detect a rapid decline within the rolling window.
+    Purely a prioritization layer on top of the existing health score - does not
+    alter the score itself.
+    Returns dict with 'rapid_decline', 'drop_amount', 'drop_minutes'.
+    """
+    now = time.time()
+    history = health_score_history.setdefault(device_name, [])
+    history.append({'ts': now, 'score': score})
+
+    # Prune samples outside the window
+    cutoff = now - (RAPID_DECLINE_WINDOW_MINUTES * 60)
+    history[:] = [h for h in history if h['ts'] >= cutoff]
+
+    peak = max(history, key=lambda h: h['score'])
+    drop_amount = peak['score'] - score
+    drop_minutes = round((now - peak['ts']) / 60, 1)
+
+    return {
+        'rapid_decline': drop_amount >= RAPID_DECLINE_THRESHOLD,
+        'drop_amount': drop_amount,
+        'drop_minutes': drop_minutes
+    }
 
 # Device registry to track which disk is at which device path
 # Structure: {device_name: {'model': str, 'serial': str, 'disk_id': str}}
@@ -1212,6 +1252,7 @@ def _scan_single_device(device_name):
                 device_data['health_rating'] = format_health_rating(health_score['total'])
                 device_data['is_ssd'] = health_score.get('is_ssd', False)
                 device_data['components'] = health_score['components']
+                device_data.update(_track_rapid_decline(device_name, health_score['total']))
                 
                 # Detect Ghost Drive Condition
                 gdc_info = detect_ghost_drive_condition(dev, health_score['components'])
@@ -1324,6 +1365,7 @@ def _scan_single_device(device_name):
                 device_data['health_rating'] = format_health_rating(health_score['total'])
                 device_data['is_ssd'] = health_score.get('is_ssd', False)
                 device_data['components'] = health_score['components']
+                device_data.update(_track_rapid_decline(device_name, health_score['total']))
                 print(f"✅ {device_name}: Health score from fallback: {health_score['total']}")
                 
                 # === BACKEND AUTHORITY: Escalation & Health State (Fallback Path) ===
@@ -1598,6 +1640,26 @@ def scan_all_devices_progressive():
             for phantom in phantom_registry:
                 del device_registry[phantom]
                 print(f"   ✓ Removed {phantom} from device_registry")
+
+        # Cleanup gdc_managers for devices no longer present, so that if the same
+        # device name is later reused (reconnect or a different disk), it gets a
+        # fresh initialize_gdc_for_device() call with proper disk-swap verification
+        # instead of silently inheriting a stale (e.g. CONFIRMED) state forever.
+        # GDC history itself is persisted separately via gdc_logger, so log access
+        # for the removed disk is not lost.
+        phantom_gdc = set(gdc_managers.keys()) - set(device_names)
+        if phantom_gdc:
+            print(f"🧹 Cleaning up phantom gdc_managers entries: {phantom_gdc}")
+            for phantom in phantom_gdc:
+                del gdc_managers[phantom]
+                print(f"   ✓ Removed {phantom} from gdc_managers")
+
+        # Cleanup rapid-decline history for devices no longer present, so a reused
+        # device name doesn't inherit an unrelated disk's peak score.
+        phantom_history = set(health_score_history.keys()) - set(device_names)
+        if phantom_history:
+            for phantom in phantom_history:
+                del health_score_history[phantom]
         
         print(f"⚡ Progressive scan starting: {device_names}")
     except Exception as e:
@@ -2621,6 +2683,12 @@ def api_devices_progressive():
         'system_event': scan_status.get('last_system_event')
     })
 
+@app.route('/api/system-event/dismiss', methods=['POST'])
+def api_system_event_dismiss():
+    """Dismiss the currently displayed system event banner"""
+    scan_status['last_system_event'] = None
+    return jsonify({'status': 'dismissed'})
+
 @app.route('/api/scan/start', methods=['POST'])
 def api_scan_start():
     """Start a new scan in background"""
@@ -3219,6 +3287,8 @@ def api_save_settings():
         legacy_allow_lan = general.pop('allow_lan_access', None)
         if 'webui_bind_host' in general:
             general['webui_bind_host'] = normalize_webui_bind_host(general['webui_bind_host'])
+        if 'webui_port' in general:
+            general['webui_port'] = normalize_webui_port(general['webui_port'])
         elif legacy_allow_lan is not None:
             general['webui_bind_host'] = '0.0.0.0' if legacy_allow_lan else '127.0.0.1'
     
@@ -3252,6 +3322,8 @@ def api_save_settings():
             config['temperature_unit'] = current_config['general']['temperature_unit']
         if 'webui_bind_host' in current_config['general']:
             config['webui_bind_host'] = current_config['general']['webui_bind_host']
+        if 'webui_port' in current_config['general']:
+            config['port'] = normalize_webui_port(current_config['general']['webui_port'])
     
     if success:
         return jsonify({'status': 'success', 'message': 'All settings saved'})
@@ -3669,9 +3741,12 @@ def main():
     if configured_bind_host is None:
         configured_bind_host = '0.0.0.0' if general_config.get('allow_lan_access', False) else '127.0.0.1'
     bind_host = normalize_webui_bind_host(args.host or configured_bind_host)
+    # Use CLI --port if explicitly given (not default 5000), else use saved setting
+    configured_port = normalize_webui_port(general_config.get('webui_port', 5000))
+    resolved_port = args.port if args.port != 5000 else configured_port
     
     # Apply command-line args (override saved settings)
-    config['port'] = args.port
+    config['port'] = resolved_port
     config['refresh_interval'] = general_config.get('polling_interval', args.refresh)
     config['language'] = general_config.get('language', args.language)
     config['temperature_unit'] = general_config.get('temperature_unit', 'C')
@@ -3683,7 +3758,7 @@ def main():
     
     print(f"Starting S.M.A.R.T. Web Monitor...")
     if webui_enabled:
-        print(f"Dashboard: http://{bind_host}:{args.port}")
+        print(f"Dashboard: http://{bind_host}:{resolved_port}")
         if bind_host not in {'127.0.0.1', '::1'}:
             print("⚠️  WebUI is exposed beyond localhost. Use only on trusted internal networks.")
     else:
@@ -3719,17 +3794,17 @@ def main():
     if args.dev:
         # Development server
         print("⚠️  Running Flask development server (--dev mode)")
-        app.run(host=bind_host, port=args.port, debug=True)
+        app.run(host=bind_host, port=resolved_port, debug=True)
     else:
         # Production server with waitress
         try:
             from waitress import serve
             print("✓ Running production server (waitress)")
-            serve(app, host=bind_host, port=args.port)
+            serve(app, host=bind_host, port=resolved_port)
         except ImportError:
             print("⚠️  waitress not installed, falling back to Flask dev server")
             print("   Install with: pip install waitress")
-            app.run(host=bind_host, port=args.port, debug=False)
+            app.run(host=bind_host, port=resolved_port, debug=False)
 
 if __name__ == '__main__':
     main()

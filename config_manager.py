@@ -27,7 +27,8 @@ DEFAULT_CONFIG = {
         'polling_interval': 60,
         'temperature_unit': 'C',
         'enable_webui': True,  # WebUI enabled by default
-        'webui_bind_host': '127.0.0.1'  # Backend-owned bind address for WebUI
+        'webui_bind_host': '127.0.0.1',  # Backend-owned bind address for WebUI
+        'webui_port': 5000               # Backend-owned port for WebUI
     },
     
     # Disk Selection

@@ -181,11 +181,13 @@ App.refreshData = async function() {
         this.state.scanning = data.scanning || false;
 
         // Handle system event banner if present
-        if (data.system_event && data.system_event.type === 'uncontrolled_shutdown') {
+        const dismissedTs = localStorage.getItem('dismissedSystemEventTs');
+        if (data.system_event && data.system_event.type === 'uncontrolled_shutdown' &&
+            data.system_event.timestamp !== dismissedTs) {
             this.state.lastSystemEvent = data.system_event;
             this.renderSystemEventBanner();
         } else {
-            // Hide banner if no event
+            // Hide banner if no event or already dismissed
             const banner = document.getElementById('system-event-banner');
             if (banner) banner.style.display = 'none';
         }
@@ -285,6 +287,21 @@ App.renderSystemEventBanner = function() {
     affectedEl.textContent = `Påvirket disker: ${count}`;
 };
 
+App.dismissSystemEventBanner = async function() {
+    const evt = this.state.lastSystemEvent;
+    const banner = document.getElementById('system-event-banner');
+    if (banner) banner.style.display = 'none';
+    if (evt && evt.timestamp) {
+        localStorage.setItem('dismissedSystemEventTs', evt.timestamp);
+    }
+    this.state.lastSystemEvent = null;
+    try {
+        await fetch('/api/system-event/dismiss', { method: 'POST' });
+    } catch (error) {
+        console.error('Error dismissing system event:', error);
+    }
+};
+
 App.forceScan = async function() {
     if (this.state.scanning) {
         alert(this.t('scanning_in_progress') || 'Scanning already in progress...');
@@ -346,6 +363,18 @@ App.renderDevices = function() {
         return;
     }
     
+    // Lift disks with a rapid health decline to the top so they aren't buried
+    // among many otherwise-healthy disks. Does not affect the health score itself.
+    devicesToShow = [...devicesToShow].sort((a, b) => {
+        if (!!b.rapid_decline !== !!a.rapid_decline) {
+            return (b.rapid_decline ? 1 : 0) - (a.rapid_decline ? 1 : 0);
+        }
+        if (a.rapid_decline && b.rapid_decline) {
+            return (b.drop_amount || 0) - (a.drop_amount || 0);
+        }
+        return 0;
+    });
+    
     container.innerHTML = `
         <div class="devices-grid">
             ${devicesToShow.map(device => this.renderDeviceCard(device)).join('')}
@@ -401,6 +430,7 @@ App.renderDeviceCard = function(device) {
         <div class="device-card status-${status}" data-device="${device.name}">
             ${scanningOverlay}
             ${this.renderDeviceHeader(device, status, diskIcon, usbBadge)}
+            ${this.renderRapidDeclineBanner(device)}
             ${this.renderPastFailures(device)}
             ${this.renderCriticalHealthWarning(device)}
             ${this.renderSlowSmartWarning(device)}
@@ -601,6 +631,22 @@ App.renderEscalatedAttributes = function(device) {
         <div class="escalated-section ${sectionClass}">
             <div class="escalated-header">⚠️ ${headerText}</div>
             <div class="escalated-list">${escalatedHTML}</div>
+        </div>
+    `;
+};
+
+// ===== RAPID DECLINE BANNER (health dropped sharply in a short time) =====
+App.renderRapidDeclineBanner = function(device) {
+    if (!device.rapid_decline) {
+        return '';
+    }
+    
+    const minutes = Math.round(device.drop_minutes || 0);
+    
+    return `
+        <div class="rapid-decline-banner">
+            <span class="rapid-decline-icon">⚡</span>
+            <span class="rapid-decline-text">Raskt fall: −${device.drop_amount} poeng siste ${minutes} min</span>
         </div>
     `;
 };
@@ -2002,6 +2048,7 @@ App.populateSettingsForm = function() {
     
     document.getElementById('setting-polling-interval').value = s.general?.polling_interval || 60;
     document.getElementById('setting-webui-bind-host').value = s.general?.webui_bind_host || (s.general?.allow_lan_access ? '0.0.0.0' : '127.0.0.1');
+    document.getElementById('setting-webui-port').value = s.general?.webui_port ?? 5000;
     
     // Disks
     const diskList = document.getElementById('disk-selection-list');
@@ -2081,6 +2128,7 @@ App.saveSettings = async function() {
             language: document.getElementById('setting-language').value,
             polling_interval: parseInt(document.getElementById('setting-polling-interval').value),
             webui_bind_host: document.getElementById('setting-webui-bind-host').value.trim() || '127.0.0.1',
+            webui_port: parseInt(document.getElementById('setting-webui-port').value) || 5000,
             temperature_unit: 'C'
         },
         disk_selection: {
@@ -2166,8 +2214,9 @@ App.saveSettings = async function() {
         if (!response.ok) throw new Error('Failed to save settings');
         
         const bindHostChanged = (this.state.settings?.general?.webui_bind_host || (this.state.settings?.general?.allow_lan_access ? '0.0.0.0' : '127.0.0.1')) !== newSettings.general.webui_bind_host;
-        alert(bindHostChanged
-            ? 'Settings saved successfully! Restart WebUI for bind-address changes to take effect.'
+        const portChanged = (this.state.settings?.general?.webui_port ?? 5000) !== newSettings.general.webui_port;
+        alert(bindHostChanged || portChanged
+            ? 'Settings saved successfully! Restart WebUI for network/port changes to take effect.'
             : 'Settings saved successfully!');
         
         // Update local state

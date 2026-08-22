@@ -1057,6 +1057,11 @@ class SettingsDialog(QDialog):
         self.webui_bind_host_edit.setText(self.config.get('general', {}).get('webui_bind_host', '127.0.0.1'))
         general_layout.addRow(self.t('webui_bind_host', 'WebUI bind address:'), self.webui_bind_host_edit)
 
+        self.webui_port_spin = QSpinBox()
+        self.webui_port_spin.setRange(1, 65535)
+        self.webui_port_spin.setValue(self.config.get('general', {}).get('webui_port', 5000))
+        general_layout.addRow(self.t('webui_port', 'WebUI port:'), self.webui_port_spin)
+
         lan_notice = QLabel(self.t('webui_bind_host_help', 'Use 127.0.0.1 for local only, a specific LAN IP for one interface, or 0.0.0.0 for all interfaces. Requires WebUI restart.'))
         lan_notice.setWordWrap(True)
         general_layout.addRow(lan_notice)
@@ -1654,6 +1659,7 @@ class SettingsDialog(QDialog):
         self.config['general']['language'] = self.language_combo.currentText()
         self.config['general']['polling_interval'] = self.polling_spin.value()
         self.config['general']['webui_bind_host'] = self.webui_bind_host_edit.text().strip() or '127.0.0.1'
+        self.config['general']['webui_port'] = self.webui_port_spin.value()
         
         if 'disk_selection' not in self.config:
             self.config['disk_selection'] = {}

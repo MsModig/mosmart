@@ -510,6 +510,80 @@
     }
 }
 
+/* ===== SYSTEM EVENT BANNER (uncontrolled shutdown, etc.) ===== */
+.info-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    background: linear-gradient(135deg, #f39c12 0%, #f1c40f 100%);
+    border: 3px solid #f39c12;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    box-shadow: 0 6px 20px rgba(243, 156, 18, 0.35);
+    color: #2c2c2c;
+}
+
+.info-banner .banner-icon {
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.info-banner .banner-content {
+    flex: 1;
+}
+
+.info-banner .banner-title {
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+
+.info-banner .banner-message {
+    font-weight: 600;
+}
+
+.info-banner .banner-details,
+.info-banner .banner-note {
+    font-size: 0.85rem;
+    opacity: 0.9;
+}
+
+.info-banner .banner-dismiss-btn {
+    background: transparent;
+    border: none;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #2c2c2c;
+    padding: 4px 8px;
+    border-radius: 6px;
+    align-self: flex-start;
+}
+
+.info-banner .banner-dismiss-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+/* ===== RAPID DECLINE BANNER ===== */
+.rapid-decline-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    border: 2px solid #c0392b;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin: 10px 0;
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 3px 10px rgba(231, 76, 60, 0.35);
+}
+
+.rapid-decline-icon {
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
 .gdc-icon {
     font-size: 3rem;
     line-height: 1;
