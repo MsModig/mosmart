@@ -10,7 +10,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="mosmart",
-    version="0.9.4",
+    version="0.9.5",
     author="Magnus Modig",
     author_email="kontakt@modigs-datahjelp.no",
     description="S.M.A.R.T Monitor Tool for Linux - Real-time disk health monitoring with web dashboard",

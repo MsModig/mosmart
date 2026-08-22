@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-08-22
+
 ### Changed
 - Documentation examples now use generic virtual environment paths (e.g. `$HOME/mosmart-venv` and `/path/to/mosmart`) instead of hardcoded home-directory paths.
 - Installation documentation now recommends `pipx install mosmart` for Linux Mint/Debian/Ubuntu and explains `externally-managed-environment` (PEP 668) with a venv fallback.
@@ -16,6 +18,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - GDC (Ghost Drive Condition) state no longer lingers on a device name after it disconnects; a reused device name now gets a fresh identity/swap check instead of inheriting a stale CONFIRMED/TERMINAL state.
+- **SMART ID 202 ("Lifetime Remaining") was incorrectly read on mechanical (HDD) disks.** ID 202 is not standardized across vendors; on HDDs it can represent an unrelated vendor-specific counter (e.g. `Data_Address_Mark_Errs`) instead of SSD endurance. The value is now only interpreted as lifetime-remaining when the disk is actually detected as an SSD.
 
 ## [0.9.4] - 2026-02-17
 

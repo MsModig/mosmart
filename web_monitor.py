@@ -298,6 +298,7 @@ def _parse_smartctl_json_fallback(device_name):
             'temperature': None,
             'power_on_hours': None,
             'power_cycle_count': None,
+            'rotation_rate': data.get('rotation_rate'),
             'attributes': {}
         }
         
@@ -971,8 +972,14 @@ def _scan_single_device(device_name):
                 if fallback_data['power_cycle_count']:
                     device_data['power_cycle_count'] = fallback_data['power_cycle_count']
 
-                # SMART ID 202 - Lifetime Remaining (handle Percent_Used conversion)
-                lifetime_attr = fallback_data.get('attributes', {}).get(202)
+                # SMART ID 202 - Lifetime Remaining (SSD-only; ID 202 means something else on HDDs)
+                model_lower = (model or '').lower()
+                is_fallback_ssd = (
+                    fallback_data.get('rotation_rate') == 0
+                    or 'ssd' in model_lower or 'nvme' in model_lower
+                    or 'bx500' in model_lower or 'crucial' in model_lower
+                )
+                lifetime_attr = fallback_data.get('attributes', {}).get(202) if is_fallback_ssd else None
                 if lifetime_attr and lifetime_attr.get('raw') is not None:
                     try:
                         raw_value = int(lifetime_attr.get('raw'))
@@ -1184,8 +1191,10 @@ def _scan_single_device(device_name):
                     except (ValueError, TypeError):
                         pass
 
-                # SMART ID 202 - Lifetime Remaining (handle Percent_Used conversion)
-                lifetime_attr = next((a for a in dev.attributes if a and hasattr(a, 'num') and a.num == 202), None)
+                # SMART ID 202 - Lifetime Remaining (SSD-only; ID 202 means something else on HDDs)
+                model_lower = (model or '').lower()
+                is_ssd_for_lifetime = 'ssd' in model_lower or 'nvme' in model_lower or 'bx500' in model_lower or 'crucial' in model_lower
+                lifetime_attr = next((a for a in dev.attributes if a and hasattr(a, 'num') and a.num == 202), None) if is_ssd_for_lifetime else None
                 if lifetime_attr and lifetime_attr.raw:
                     try:
                         raw_value = int(str(lifetime_attr.raw).split()[0])
