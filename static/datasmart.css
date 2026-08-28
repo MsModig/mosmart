@@ -456,9 +456,9 @@ main {
 }
 
 .device-card.status-unassessable {
-    border-color: #6b7280;  /* Gray - not an error, just no data */
-    opacity: 0.85;
-    background: linear-gradient(135deg, var(--bg-secondary) 0%, #2a2a2a 100%);
+    border-color: var(--purple);  /* Neutral purple - not good, not bad, just not assessable */
+    opacity: 0.9;
+    background: linear-gradient(135deg, rgba(188, 140, 255, 0.08) 0%, var(--bg-secondary) 100%);
 }
 
 .device-header {

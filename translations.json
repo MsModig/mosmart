@@ -161,7 +161,7 @@
         "test_email": "Send test-e-post",
         "usb_smart_warning": "USB: SMART-data kan være upålitelig - bruk intern tilkobling for nøyaktig avlesning",
         "smart_unavailable_fallback": "Kan ikke lese helsestatus - viser kun grunnleggende info (modell, serienummer, størrelse)",
-        "unassessable_smart_data": "Kan ikke måle diskhelse - mangler data fra disken",
+        "unassessable_smart_data": "SMART utilgjengelig",
         "unassessable": "Ikke vurderbar",
         "gdc_identity_preserved": "Disk identity preserved for log access",
         "period_24h": "24h",

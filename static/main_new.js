@@ -417,7 +417,9 @@ App.renderDeviceCard = function(device) {
     if (!device) return '';
     
     const status = this.getDeviceStatus(device);
-    const diskIcon = device.is_ssd 
+    const diskIcon = device.is_thumb_drive
+        ? `<img src="/static/img_thd.png" class="disk-icon" alt="USB flash drive" onerror="this.onerror=null;this.src='/static/img_hdd.png';">`
+        : device.is_ssd
         ? `<img src="/static/img_ssd.png" class="disk-icon" alt="SSD">`
         : `<img src="/static/img_hdd.png" class="disk-icon" alt="HDD">`;
     const usbBadge = device.is_usb ? '<span class="usb-badge" title="USB device - Limited SMART support expected">🔌 USB</span>' : '';
@@ -961,6 +963,11 @@ App.getDeviceStatus = function(device) {
     // GDC states: SUSPECT, CONFIRMED, TERMINAL
     if (gdcState && gdcState !== 'OK') {
         return 'gdc';
+    }
+
+    // USB flash drives without SMART data are not failed disks and are not truly healthy; they are simply not assessable.
+    if (device.smart_unavailable && (device.device_type === 'USB_FLASH' || device.is_thumb_drive || device.is_usb)) {
+        return 'unassessable';
     }
     
     if (device.health_score === null || device.health_score === undefined) {

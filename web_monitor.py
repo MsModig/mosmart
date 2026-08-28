@@ -228,7 +228,137 @@ lifecycle_logger = DeviceLifecycleLogger()
 # Track devices seen in previous scan (for disappearance detection)
 previous_scan_devices = set()  # Set of device_names from last scan
 
-def _parse_smartctl_json_fallback(device_name):
+SMART_AVAILABLE = 'SMART_AVAILABLE'
+SMART_DISABLED = 'SMART_DISABLED'
+SMART_UNAVAILABLE = 'SMART_UNAVAILABLE'
+SMART_UNKNOWN = 'SMART_UNKNOWN'
+
+DEVICE_DISK = 'DISK'
+DEVICE_USB_FLASH = 'USB_FLASH'
+DEVICE_UNKNOWN_USB = 'UNKNOWN_USB'
+
+
+def get_udev_properties(device_name):
+    """Return udev properties for a block device."""
+    try:
+        result = subprocess.run(
+            ['udevadm', 'info', '--query=property', '--name', f'/dev/{device_name}'],
+            capture_output=True,
+            text=True,
+            timeout=3
+        )
+        if result.returncode != 0:
+            return {}
+
+        properties = {}
+        for line in result.stdout.splitlines():
+            key, separator, value = line.partition('=')
+            if separator:
+                properties[key] = value
+        return properties
+    except (OSError, subprocess.TimeoutExpired) as e:
+        print(f"⚠️ Could not read udev properties for {device_name}: {e}")
+        return {}
+
+
+def probe_smart_capability(device_name):
+    """Probe SMART capability without changing device or GDC state."""
+    try:
+        result = subprocess.run(
+            ['smartctl', '-i', f'/dev/{device_name}'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+    except subprocess.TimeoutExpired:
+        print(f"⏱️ {device_name}: SMART capability probe timed out")
+        return SMART_UNKNOWN
+    except OSError as e:
+        print(f"⚠️ {device_name}: SMART capability probe failed: {e}")
+        return SMART_UNKNOWN
+
+    output = f"{result.stdout}\n{result.stderr}"
+
+    if 'SMART support is: Disabled' in output:
+        return SMART_DISABLED
+    if 'SMART support is: Available' in output:
+        return SMART_AVAILABLE
+    if 'SMART support is: Unavailable' in output:
+        return SMART_UNAVAILABLE
+    return SMART_UNKNOWN
+
+
+def classify_device(device_name):
+    """Classify a device before GDC history and pySMART processing."""
+    smart_capability = probe_smart_capability(device_name)
+    is_usb = is_usb_device(device_name)
+
+    if smart_capability in [SMART_AVAILABLE, SMART_DISABLED] or not is_usb:
+        return {
+            'device_type': DEVICE_DISK,
+            'smart_capability': smart_capability,
+            'is_usb': is_usb,
+        }
+
+    properties = get_udev_properties(device_name)
+    vendor_id = properties.get('ID_VENDOR_ID')
+    model_id = properties.get('ID_MODEL_ID')
+    model = properties.get('ID_MODEL', '').lower()
+    known_flash = (
+        properties.get('ID_DRIVE_FLASH') == '1'
+        or properties.get('ID_DRIVE_THUMB') == '1'
+        or (
+            vendor_id == '0951'
+            and model_id == '1666'
+            and 'datatraveler' in model
+        )
+    )
+
+    return {
+        'device_type': DEVICE_USB_FLASH if known_flash else DEVICE_UNKNOWN_USB,
+        'smart_capability': smart_capability,
+        'is_usb': True,
+        'udev_properties': properties,
+    }
+
+
+def create_non_disk_device_data(device_name, classification, worker_config):
+    """Create result data for USB devices excluded from SMART and GDC."""
+    properties = classification.get('udev_properties', {})
+    model = properties.get('ID_MODEL')
+    serial = properties.get('ID_SERIAL_SHORT') or properties.get('ID_SERIAL')
+    device_type = classification['device_type']
+
+    return {
+        'name': device_name,
+        'responsive': False,
+        'model': model,
+        'serial': serial,
+        'capacity': None,
+        'interface': 'USB',
+        'temperature': None,
+        'power_on_hours': None,
+        'power_on_formatted': 'N/A',
+        'health_score': None,
+        'health_rating': 'N/A',
+        'is_ssd': False,
+        'is_thumb_drive': device_type == DEVICE_USB_FLASH,
+        'smart_unavailable': True,
+        'smart_capability': classification['smart_capability'],
+        'device_type': device_type,
+        'components': None,
+        'is_usb': True,
+        'is_monitored': worker_config.get('monitored_devices', {}).get(device_name, True),
+        'has_warnings': False,
+        'latest_warning': None,
+        'scan_status': 'success',
+        'health_state': 'unassessable',
+        'escalated_attributes': [],
+        'gdc_state': None,
+    }
+
+
+def _parse_smartctl_json_fallback(device_name, classification=None):
     """
     Fallback parser for disks that pySMART can't handle (e.g., IDE via USB).
     Directly parses smartctl JSON output.
@@ -246,10 +376,18 @@ def _parse_smartctl_json_fallback(device_name):
             text=True,
             timeout=5
         )
-        
-        has_smart_capability = 'SMART support is: Available' in check_result.stdout
-        smart_disabled = has_smart_capability and 'SMART support is: Disabled' in check_result.stdout
-        
+
+        check_output = f"{check_result.stdout}\n{check_result.stderr}"
+        smart_disabled = 'SMART support is: Disabled' in check_output
+        if smart_disabled:
+            has_smart_capability = True
+        elif 'SMART support is: Available' in check_output:
+            has_smart_capability = True
+        elif 'SMART support is: Unavailable' in check_output:
+            has_smart_capability = False
+        else:
+            has_smart_capability = None
+
         if smart_disabled:
             print(f"⚠️ {device_name}: SMART capable but disabled, attempting enable (3 retries)...")
             
@@ -288,6 +426,22 @@ def _parse_smartctl_json_fallback(device_name):
         
         data = json.loads(result.stdout)
         
+        # smartctl auto-detects known USB-SATA bridge chips (used by real HDD/SSD
+        # enclosures) via its internal database and reads SMART without needing '-d'.
+        # "Unknown USB bridge" means the bridge chip isn't in that database, which in
+        # practice means this is a plain USB flash drive with no real SMART-capable
+        # disk behind it. Forcing a device type (e.g. '-d sat') on such a device
+        # produces garbled, meaningless data (bogus model/serial/attributes) rather
+        # than real SMART data, so treat this as "no SMART support" instead of retrying.
+        messages = data.get('smartctl', {}).get('messages', [])
+        bridge_unknown = any(
+            'Unknown USB bridge' in m.get('string', '') or 'specify device type' in m.get('string', '')
+            for m in messages
+        )
+        if bridge_unknown:
+            print(f"🔌 {device_name}: Unknown USB bridge — treating as USB flash drive with no SMART support")
+            return (None, False)
+
         # Extract basic info
         device_info = {
             'model': data.get('model_name') or data.get('model_family'),
@@ -343,16 +497,27 @@ def _parse_smartctl_json_fallback(device_name):
                 'raw': raw_value
             }
         
+        # No identity and no attributes means smartctl never actually identified a real
+        # disk (e.g. plain USB flash drive behind an unrecognized bridge). Report this as
+        # "no SMART support" instead of a bogus empty success, so it isn't flagged as GDC.
+        if not device_info['model'] and not device_info['serial'] and not attrs_table:
+            print(f"ℹ️ {device_name}: No usable SMART data returned — treating as no SMART support")
+            return (None, False)
+
         print(f"✅ Fallback parser success for {device_name}: {device_info['model']} ({device_info['serial']})")
         return (device_info, has_smart_capability)
         
     except subprocess.TimeoutExpired as e:
         print(f"❌ Fallback parser timeout for {device_name}: {e}")
-        # Register timeout event in GDC manager
-        if device_name not in gdc_managers:
-            initialize_gdc_for_device(device_name, None, None)
-        gdc_managers[device_name].event_timeout()
-        print(f"⏱️ {device_name}: Registered TIMEOUT with GDC manager (fallback parser)")
+        if classification and classification.get('device_type') == DEVICE_DISK:
+            if device_name not in gdc_managers:
+                initialize_gdc_for_device(
+                    device_name,
+                    classification=classification
+                )
+            gdc_managers[device_name].event_timeout()
+            print(f"⏱️ {device_name}: Registered TIMEOUT with GDC manager")
+        return (None, SMART_UNKNOWN)
 
 
 def get_system_uptime_seconds() -> Optional[float]:
@@ -494,6 +659,44 @@ def set_scan_result_placeholder(device_name):
         scan_results_placeholder_time[device_name] = time.time()
 
 
+def _should_replace_scan_result(existing, incoming):
+    """Return True when a newer scan should override stale classification/state."""
+    if not existing:
+        return True
+
+    if existing.get('model') == '⏳ Scanning...':
+        return True
+
+    existing_type = existing.get('device_type')
+    incoming_type = incoming.get('device_type')
+    existing_is_thumb = existing.get('is_thumb_drive')
+    incoming_is_thumb = incoming.get('is_thumb_drive')
+
+    if existing_type != incoming_type:
+        # Reclassification is a genuine state change, not a stale race.
+        return True
+
+    if existing_is_thumb != incoming_is_thumb:
+        return True
+
+    existing_gdc = existing.get('gdc_state')
+    incoming_gdc = incoming.get('gdc_state')
+    existing_display = existing.get('display_status')
+    incoming_display = incoming.get('display_status')
+
+    if incoming_type == DEVICE_USB_FLASH and incoming_gdc in (None, 'OK'):
+        if existing_gdc not in (None, 'OK') or existing_display is not None:
+            return True
+
+    if incoming_type != DEVICE_DISK and existing_type != DEVICE_DISK:
+        if existing_gdc not in (None, 'OK') and incoming_gdc in (None, 'OK'):
+            return True
+        if existing_display is not None and incoming_display is None:
+            return True
+
+    return False
+
+
 def update_scan_result(device_name, device_data):
     """
     Safely update scan_result with real data (not placeholder).
@@ -501,18 +704,15 @@ def update_scan_result(device_name, device_data):
     Ensures placeholder is never restored after real data.
     """
     global scan_results, scan_results_placeholder_time
-    
+
     with scan_lock:
-        # Only update if:
-        # 1. Device not in results yet, OR
-        # 2. Device is in placeholder state (model == "⏳ Scanning...")
-        if device_name not in scan_results or scan_results[device_name].get('model') == '⏳ Scanning...':
+        existing = scan_results.get(device_name)
+        should_replace = _should_replace_scan_result(existing, device_data)
+
+        if existing is None or should_replace:
             scan_results[device_name] = device_data
-            # Clear placeholder time since we now have real data
             scan_results_placeholder_time.pop(device_name, None)
         else:
-            # Device already has real data, don't overwrite
-            # This prevents race conditions where old data overwrites new
             print(f"⚠️  {device_name}: Already has real data, skipping update (collision protection)")
 
 
@@ -563,7 +763,7 @@ def check_stuck_devices():
         lifecycle_logger.log_stuck_device(device_name, elapsed)
 
 
-def initialize_gdc_for_device(device_name, model=None, serial=None):
+def initialize_gdc_for_device(device_name, model=None, serial=None, classification=None):
     """
     Initialize GDC manager for device. Load state from history if available.
     MUST be called BEFORE scanning device to restore persistent state.
@@ -581,6 +781,23 @@ def initialize_gdc_for_device(device_name, model=None, serial=None):
             - manager: GDCManager instance
     """
     global gdc_managers
+
+    if classification is None:
+        classification = classify_device(device_name)
+
+    if classification['device_type'] != DEVICE_DISK:
+        print(
+            f"🔌 {device_name}: {classification['device_type']} has priority over GDC history"
+        )
+        gdc_managers.pop(device_name, None)
+        return {
+            'skip_scan': True,
+            'display_status': None,
+            'gdc_state': None,
+            'manager': None,
+            'device_type': classification['device_type'],
+            'classification': classification,
+        }
     
     # Try to get model/serial from registry if not provided
     if not model or not serial:
@@ -862,7 +1079,7 @@ def is_usb_device(device_name):
         print(f"⚠️ Could not detect USB status for {device_name}: {e}")
         return False
 
-def _scan_single_device(device_name):
+def _scan_single_device(device_name, classification=None):
     """Scan a single device synchronously"""
     global is_force_scan  # Declare at top of function
     print(f"🔧 Scanning {device_name}...")
@@ -886,6 +1103,20 @@ def _scan_single_device(device_name):
         # Load config
         worker_config = load_config()
         language = worker_config.get('general', {}).get('language', config.get('language', 'en'))
+
+        if classification is None:
+            classification = classify_device(device_name)
+
+        if classification['device_type'] != DEVICE_DISK:
+            print(
+                f"🔌 {device_name}: Classified as "
+                f"{classification['device_type']} - skipping SMART and GDC"
+            )
+            return create_non_disk_device_data(
+                device_name,
+                classification,
+                worker_config
+            )
         
         print(f"🔧 {device_name}: Creating Device object...")
         dev = Device(device_name)
@@ -923,7 +1154,10 @@ def _scan_single_device(device_name):
         if dev is None or dev.assessment is None or dev.model is None:
             print(f"⚠️ {device_name}: pySMART failed, trying fallback parser... (dev={dev is not None}, assessment={dev.assessment if dev else None}, model={dev.model if dev else None})")
             
-            fallback_data, has_smart = _parse_smartctl_json_fallback(device_name)
+            fallback_data, has_smart = _parse_smartctl_json_fallback(
+                device_name,
+                classification=classification
+            )
             
             if fallback_data:
                 print(f"✅ {device_name}: Fallback parser succeeded!")
@@ -1018,7 +1252,12 @@ def _scan_single_device(device_name):
                 
                 # Initialize GDC manager if needed
                 if device_name not in gdc_managers:
-                    initialize_gdc_for_device(device_name, device_data.get('model'), device_data.get('serial'))
+                    initialize_gdc_for_device(
+                        device_name,
+                        device_data.get('model'),
+                        device_data.get('serial'),
+                        classification=classification
+                    )
                 
                 # Trigger GDC event for SMART unavailable
                 gdc_managers[device_name].event_no_smart_support()
@@ -1161,7 +1400,10 @@ def _scan_single_device(device_name):
                 # If pySMART couldn't get power_on_hours, try fallback parser
                 if 'power_on_hours' not in device_data or device_data['power_on_hours'] is None:
                     print(f"⚠️ {device_name}: pySMART couldn't get power_on_hours, trying fallback...")
-                    fallback_data, _ = _parse_smartctl_json_fallback(device_name)
+                    fallback_data, _ = _parse_smartctl_json_fallback(
+                        device_name,
+                        classification=classification
+                    )
                     if fallback_data and fallback_data.get('power_on_hours') is not None:
                         device_data['power_on_hours'] = fallback_data['power_on_hours']
                         device_data['power_on_formatted'] = format_power_on_time_localized(fallback_data['power_on_hours'], language)
@@ -1446,6 +1688,10 @@ def _scan_single_device(device_name):
                 device_data['serial'] = fallback_info.get('serial') or 'Unknown'
                 device_data['capacity'] = fallback_info.get('capacity') or 'Unknown'
                 device_data['smart_unavailable'] = True  # Flag to show warning in UI
+                # No known SMART-capable disk behind a real HDD/SSD USB enclosure would
+                # end up here (those are auto-detected by smartctl/pySMART). A USB device
+                # with no SMART at all is almost always a plain flash/thumb drive.
+                device_data['is_thumb_drive'] = is_usb
                 device_data['health_state'] = 'unknown'  # No SMART = unknown state
                 device_data['escalated_attributes'] = []  # No SMART = no escalations
                 print(f"✅ {device_name}: Basic info retrieved via fallback (SMART unavailable)")
@@ -1463,7 +1709,7 @@ def _scan_single_device(device_name):
                                 self.temperature = None
                                 self.assessment = None
                                 self.attributes = None
-                        
+
                         minimal_dev = MinimalDevice(
                             fallback_info.get('model'),
                             fallback_info.get('serial'),
@@ -1680,10 +1926,31 @@ def scan_all_devices_progressive():
     
     # Initialize GDC managers for all devices (restore from history if available)
     gdc_info_cache = {}  # Cache GDC info for later use
+    classification_cache = {
+        device_name: classify_device(device_name)
+        for device_name in device_names
+    }
+
     for device_name in device_names:
+        classification = classification_cache[device_name]
+        if classification['device_type'] != DEVICE_DISK:
+            gdc_managers.pop(device_name, None)
+            gdc_info_cache[device_name] = {
+                'skip_scan': True,
+                'display_status': None,
+                'gdc_state': None,
+                'manager': None,
+                'device_type': classification['device_type'],
+                'classification': classification,
+            }
+            continue
+
         if device_name not in gdc_managers:
             # Initialize GDC manager and restore state from history
-            gdc_info = initialize_gdc_for_device(device_name)
+            gdc_info = initialize_gdc_for_device(
+                device_name,
+                classification=classification
+            )
             gdc_info_cache[device_name] = gdc_info
         else:
             # Manager exists - just get current state
@@ -1712,9 +1979,27 @@ def scan_all_devices_progressive():
     for device_name in device_names:
         # Get GDC info from cache
         gdc_info = gdc_info_cache.get(device_name, {})
+        classification = classification_cache[device_name]
         skip_scan = gdc_info.get('skip_scan', False)
         gdc_state = gdc_info.get('gdc_state', 'OK')
         display_status = gdc_info.get('display_status')
+
+        if gdc_info.get('device_type') != DEVICE_DISK:
+            device_data = _scan_single_device(
+                device_name,
+                classification=classification_cache[device_name]
+            )
+            if device_data.get('model') or device_data.get('serial'):
+                model = device_data.get('model') or 'Unknown'
+                serial = device_data.get('serial') or 'Unknown'
+                device_registry[device_name] = {
+                    'model': model,
+                    'serial': serial,
+                    'disk_id': f'{model}_{serial}',
+                    'interface': 'USB',
+                }
+            update_scan_result(device_name, device_data)
+            continue
         
         # Check if device is CONFIRMED or TERMINAL GDC - skip scanning if so
         if skip_scan:
@@ -1759,7 +2044,12 @@ def scan_all_devices_progressive():
                             print(f"   Old: {device_registry[device_name]['model']} ({device_registry[device_name]['serial']})")
                             print(f"   New: {model} ({serial})")
                             # Reset GDC manager for new disk
-                            initialize_gdc_for_device(device_name, model, serial)
+                            initialize_gdc_for_device(
+                                device_name,
+                                model,
+                                serial,
+                                classification=classification
+                            )
                             print(f"   ✓ GDC manager reset for new disk")
                     
                     # Update registry with current identity
@@ -1848,7 +2138,10 @@ def scan_all_devices_progressive():
         
         # Call scan function directly - no multiprocessing
         try:
-            device_data = _scan_single_device(device_name)
+            device_data = _scan_single_device(
+                device_name,
+                classification=classification_cache[device_name]
+            )
             elapsed = time.time() - start_time
             print(f"📥 {device_name}: Scan completed in {elapsed:.1f}s")
             
@@ -1863,6 +2156,11 @@ def scan_all_devices_progressive():
                     }
             
             if device_data:
+                if device_data.get('device_type') != DEVICE_DISK:
+                    update_scan_result(device_name, device_data)
+                    device_cache[device_name] = device_data
+                    device_cache_time[device_name] = current_time
+                    continue
                 
                 # Check if device changed at this path (disk swap detection)
                 if device_data.get('model') and device_data.get('serial'):
@@ -1877,7 +2175,12 @@ def scan_all_devices_progressive():
                             print(f"   New: {device_data['model']} ({device_data['serial']})")
                             
                             # Reset GDC manager for new disk
-                            initialize_gdc_for_device(device_name, model, serial)
+                            initialize_gdc_for_device(
+                                device_name,
+                                model,
+                                serial,
+                                classification=classification
+                            )
                             print(f"   ✓ GDC manager reset for new disk")
                     
                     # Update registry with identity information for GDC preservation
@@ -1888,10 +2191,25 @@ def scan_all_devices_progressive():
                         'interface': device_data.get('interface')  # Store interface for GDC preservation
                     }
                 
+                if device_data.get('device_type') != DEVICE_DISK:
+                    print(
+                        f"🔌 {device_name}: Skipping GDC processing for "
+                        f"{device_data.get('device_type')}"
+                    )
+                    update_scan_result(device_name, device_data)
+                    device_cache[device_name] = device_data
+                    device_cache_time[device_name] = current_time
+                    continue
+
                 # GDC manager should already exist (created at scan start)
                 if device_name not in gdc_managers:
                     print(f"⚠️ WARNING: GDC manager missing for {device_name}, creating now")
-                    initialize_gdc_for_device(device_name, device_data.get('model'), device_data.get('serial'))
+                    initialize_gdc_for_device(
+                        device_name,
+                        device_data.get('model'),
+                        device_data.get('serial'),
+                        classification=classification
+                    )
                 
                 # Register event with GDC manager
                 if device_data.get('responsive', False):
@@ -1919,7 +2237,12 @@ def scan_all_devices_progressive():
                 elif device_data.get('scan_status') == 'error':
                         print(f"❌ {device_name}: Registering CORRUPT with GDC manager")
                         if device_name not in gdc_managers:
-                            initialize_gdc_for_device(device_name, device_data.get('model'), device_data.get('serial'))
+                            initialize_gdc_for_device(
+                                device_name,
+                                device_data.get('model'),
+                                device_data.get('serial'),
+                                classification=classification
+                            )
                         gdc_managers[device_name].event_corrupt()
                         log_gdc_transition_if_changed(device_name, device_data)
                 
@@ -1928,13 +2251,18 @@ def scan_all_devices_progressive():
                         # Only mark as no SMART support if we explicitly detected no SMART capability (has_smart=False)
                         # Don't assume USB devices lack SMART - many USB adapters pass through SMART data
                         # Timeouts are handled separately by event_timeout()
-                        
+
                         has_model = device_data.get('model') not in [None, 'Unknown', '⏳ Scanning...']
                         has_serial = device_data.get('serial') not in [None, 'Unknown']
                         
+                        # get_disk_info_fallback() can resolve model/serial via udev/lsblk (not smartctl)
+                        # for devices with no SMART capability at all (e.g. plain USB flash drives).
+                        # Having an identity from that path must not be mistaken for "SMART data missing".
+                        no_smart_flag = device_data.get('smart_unavailable') is True
+
                         # Only mark as no SMART support if we have no identity AND no health score
                         # (Complete absence of data, not just timeout/failure)
-                        if not has_model and not has_serial and device_data.get('health_score') is None:
+                        if no_smart_flag or (not has_model and not has_serial and device_data.get('health_score') is None):
                             print(f"ℹ️  {device_name}: No SMART support detected (no identity, no health data)")
                             gdc_managers[device_name].event_no_smart_support()
                             
@@ -2000,12 +2328,15 @@ def scan_all_devices_progressive():
             print(f"❌ {device_name}: Scan exception after {elapsed:.1f}s: {scan_error}")
             
             # Check if it's a timeout (elapsed > timeout)
-            if elapsed > timeout:
+            if elapsed > timeout and classification['device_type'] == DEVICE_DISK:
                 print(f"⏱️ {device_name}: Scan timeout detected")
                 # Timeout handling - track with GDC
                 if device_name not in gdc_managers:
                     print(f"⚠️ WARNING: GDC manager missing for {device_name} on timeout, creating now")
-                    initialize_gdc_for_device(device_name)
+                    initialize_gdc_for_device(
+                        device_name,
+                        classification=classification
+                    )
                 
                 print(f"⏱️ {device_name}: Registering TIMEOUT with GDC manager")
                 gdc_managers[device_name].event_timeout()
@@ -2293,8 +2624,29 @@ def scan_all_devices():
     processes = {}
     queues = {}
     timeouts = {}
+    classification_cache = {
+        device_name: classify_device(device_name)
+        for device_name in device_names
+    }
     
     for device_name in device_names:
+        classification = classification_cache[device_name]
+
+        if classification['device_type'] != DEVICE_DISK:
+            print(
+                f"🔌 {device_name}: Classified as "
+                f"{classification['device_type']} - skipping SMART and GDC"
+            )
+            devices_info.append(
+                create_non_disk_device_data(
+                    device_name,
+                    classification,
+                    config
+                )
+            )
+            gdc_managers.pop(device_name, None)
+            continue
+
         # Check if device is CONFIRMED or TERMINAL GDC - skip scanning
         if device_name in gdc_managers:
             gdc_state = gdc_managers[device_name].state.value
@@ -2334,7 +2686,12 @@ def scan_all_devices():
                                 print(f"   Old: {device_registry[device_name]['model']} ({device_registry[device_name]['serial']})")
                                 print(f"   New: {model} ({serial})")
                                 # Reset GDC manager for new disk
-                                initialize_gdc_for_device(device_name, model, serial)
+                                initialize_gdc_for_device(
+                                    device_name,
+                                    model,
+                                    serial,
+                                    classification=classification
+                                )
                                 print(f"   ✓ GDC manager reset for new disk")
                         
                         # Update registry with current identity
@@ -2442,7 +2799,10 @@ def scan_all_devices():
         
         try:
             # Scan device directly
-            device_data = _scan_single_device(device_name)
+            device_data = _scan_single_device(
+                device_name,
+                classification=classification_cache[device_name]
+            )
             elapsed_time = time.time() - scan_start
             
             if device_data and device_data.get('responsive'):
@@ -2740,16 +3100,25 @@ def api_force_scan():
         # Set force scan flag so logging happens for all devices
         is_force_scan = True
         
+        # Exclude non-disk devices before force-scan state manipulation.
+        force_classification_cache = {
+            device_name: classify_device(device_name)
+            for device_name in list(gdc_managers)
+        }
+        for device_name, classification in force_classification_cache.items():
+            if classification['device_type'] != DEVICE_DISK:
+                gdc_managers.pop(device_name, None)
+
         # Temporarily store GDC states
         saved_states = {}
-        for device_name, manager in gdc_managers.items():
+        for device_name, manager in list(gdc_managers.items()):
             saved_states[device_name] = manager.state
         
         # Temporarily set all to OK to force scanning
         print("🔨 FORCE SCAN: Temporarily disabling GDC skip for all devices")
         from gdc import GDCState
         print(f"🔍 GDCState.OK = {GDCState.OK}")
-        for device_name, manager in gdc_managers.items():
+        for device_name, manager in list(gdc_managers.items()):
             before_state = manager.state.value
             manager.frozen = True  # FREEZE state changes during force scan
             manager.state = GDCState.OK
@@ -2765,7 +3134,7 @@ def api_force_scan():
         
         # Verify states after scan
         print("🔍 States after scan:")
-        for device_name, manager in gdc_managers.items():
+        for device_name, manager in list(gdc_managers.items()):
             print(f"  📊 {device_name}: {manager.state.value}")
         
         # Restore GDC states
